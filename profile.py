@@ -253,6 +253,7 @@ def _empty_profile() -> dict[str, Any]:
         "salaryExpect": "",
         "noticePeriod": "",
         "startDate": "",
+        "dateOfBirth": "",
         "workAuth": "",
         "university": "",
         "degree": "",

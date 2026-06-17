@@ -171,6 +171,10 @@ async def _fill_select(element: ElementHandle, value: str) -> bool:
     1. Exact value match.
     2. Case-insensitive value match.
     3. Case-insensitive label (visible text) match.
+    4. Partial label match — option label starts with the profile value
+       (or vice versa). Useful when a select shows "Deutschland" and the
+       profile has "Deutschland" with trailing punctuation, or abbreviated
+       country names.
     """
     # Retrieve all options once to avoid repeated round-trips.
     options: list[dict] = await element.evaluate("""sel => {
@@ -180,9 +184,9 @@ async def _fill_select(element: ElementHandle, value: str) -> bool:
         }));
     }""")
 
-    lower_value = value.lower()
+    lower_value = value.lower().strip()
 
-    # Exact value
+    # Tier 1 — exact value
     for opt in options:
         if opt["value"] == value:
             try:
@@ -191,7 +195,7 @@ async def _fill_select(element: ElementHandle, value: str) -> bool:
             except PlaywrightError:
                 pass
 
-    # Case-insensitive value
+    # Tier 2 — case-insensitive value
     for opt in options:
         if opt["value"].lower() == lower_value:
             try:
@@ -200,7 +204,7 @@ async def _fill_select(element: ElementHandle, value: str) -> bool:
             except PlaywrightError:
                 pass
 
-    # Case-insensitive label
+    # Tier 3 — case-insensitive label
     for opt in options:
         if opt["label"].lower() == lower_value:
             try:
@@ -208,6 +212,20 @@ async def _fill_select(element: ElementHandle, value: str) -> bool:
                 return True
             except PlaywrightError:
                 pass
+
+    # Tier 4 — partial label: option label starts with profile value or vice versa.
+    # Only applied when the profile value is at least 3 characters to avoid
+    # accidental single-letter matches.
+    if len(lower_value) >= 3:
+        for opt in options:
+            opt_lower = opt["label"].lower()
+            if opt_lower.startswith(lower_value) or lower_value.startswith(opt_lower):
+                try:
+                    await element.select_option(label=opt["label"], timeout=_FILL_TIMEOUT_MS)
+                    logger.debug("select tier-4 partial match: %r ~ %r", value, opt["label"])
+                    return True
+                except PlaywrightError:
+                    pass
 
     logger.debug("select: no matching option for value=%r", value)
     return False

@@ -322,6 +322,20 @@ _PATTERNS: dict[str, dict[str, list[str]]] = {
             r"earliest\s*start", r"eintrittsdatum", r"eintritt",
         ],
     },
+
+    "dateOfBirth": {
+        "autocomplete": [r"^bday$", r"^bday[\s-]?day$", r"^bday[\s-]?month$", r"^bday[\s-]?year$"],
+        "attr": [
+            r"date.?of.?birth", r"dob", r"birth.?date", r"birthdate",
+            r"geburtsdatum", r"geburtstag",
+            r"fecha.?nacimiento", r"date.?naissance",
+        ],
+        "text": [
+            r"date\s*of\s*birth", r"\bdob\b", r"birth\s*date",
+            r"geburtsdatum", r"geburtstag",
+            r"fecha\s*de\s*nacimiento", r"date\s*de\s*naissance",
+        ],
+    },
 }
 
 # ---------------------------------------------------------------------------

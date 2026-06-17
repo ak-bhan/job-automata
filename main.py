@@ -27,7 +27,7 @@ from typing import Any
 import uvicorn
 from fastapi import FastAPI, File, HTTPException, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from pydantic import BaseModel, HttpUrl
 
 import profile as prof
@@ -119,6 +119,7 @@ class ProfileBody(BaseModel):
     salaryExpect: str = ""
     noticePeriod: str = ""
     startDate: str = ""
+    dateOfBirth: str = ""
     workAuth: str = ""
     university: str = ""
     degree: str = ""
@@ -148,8 +149,14 @@ class FillResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 @app.get("/", include_in_schema=False)
-async def root() -> RedirectResponse:
-    """Redirect browser visits to the interactive API docs."""
+async def root() -> FileResponse:
+    """Serve the profile manager / fill UI."""
+    return FileResponse("test_page.html")
+
+
+@app.get("/docs-api", include_in_schema=False)
+async def api_docs() -> RedirectResponse:
+    """Redirect to the auto-generated OpenAPI docs."""
     return RedirectResponse(url="/docs")
 
 
