@@ -315,7 +315,7 @@ _PATTERNS: dict[str, dict[str, list[str]]] = {
         "autocomplete": [],
         "attr": [
             r"start.?date", r"available.?(?:from|date)", r"earliest.?start",
-            r"eintrittsdatum", r"\beintritt\b",
+            r"eintrittsdatum", r"eintritt",
         ],
         "text": [
             r"start\s*date", r"available\s*(?:from|date)",
