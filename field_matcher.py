@@ -118,11 +118,11 @@ _PATTERNS: dict[str, dict[str, list[str]]] = {
         "autocomplete": [r"^street[\s-]?address$", r"^address[\s-]?line[\s-]?1$"],
         "attr": [
             r"address(?!2|_2|-2|line2)", r"street", r"addr(?!ess2)",
-            r"adresse", r"direcci[oó]n", r"endere[çc]o",
+            r"adresse", r"stra(?:ss|ß)e", r"direcci[oó]n", r"endere[çc]o",
         ],
         "text": [
             r"street\s*address", r"address\s*line\s*1", r"address(?!\s*2)",
-            r"adresse", r"direcci[oó]n", r"endere[çc]o",
+            r"adresse", r"stra(?:ss|ß)e", r"direcci[oó]n", r"endere[çc]o",
         ],
     },
 
@@ -315,11 +315,11 @@ _PATTERNS: dict[str, dict[str, list[str]]] = {
         "autocomplete": [],
         "attr": [
             r"start.?date", r"available.?(?:from|date)", r"earliest.?start",
-            r"eintrittsdatum",
+            r"eintrittsdatum", r"\beintritt\b",
         ],
         "text": [
             r"start\s*date", r"available\s*(?:from|date)",
-            r"earliest\s*start", r"eintrittsdatum",
+            r"earliest\s*start", r"eintrittsdatum", r"eintritt",
         ],
     },
 }
