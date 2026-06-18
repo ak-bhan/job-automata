@@ -149,8 +149,10 @@ class FillResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 @app.get("/", include_in_schema=False)
-async def root() -> FileResponse:
-    """Serve the profile manager / fill UI."""
+async def root():
+    """Redirect to the React frontend if built, otherwise serve the test page."""
+    if Path("frontend/dist").exists():
+        return RedirectResponse(url="/app")
     return FileResponse("test_page.html")
 
 
@@ -296,6 +298,19 @@ async def get_logs(limit: int = 50) -> list[dict[str, Any]]:
     limit = min(limit, 200)
     return prof.get_fill_logs(limit=limit)
 
+
+# ---------------------------------------------------------------------------
+# Serve built React frontend if available
+# ---------------------------------------------------------------------------
+
+_FRONTEND_DIST = Path("frontend/dist")
+if _FRONTEND_DIST.exists():
+    from fastapi.staticfiles import StaticFiles
+    app.mount("/assets", StaticFiles(directory=str(_FRONTEND_DIST / "assets")), name="assets")
+
+    @app.get("/app", include_in_schema=False)
+    async def frontend():
+        return FileResponse(str(_FRONTEND_DIST / "index.html"))
 
 # ---------------------------------------------------------------------------
 # Entry point
