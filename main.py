@@ -230,10 +230,10 @@ async def upload_resume(file: UploadFile = File(...)) -> dict[str, str]:
     with dest_path.open("wb") as out:
         shutil.copyfileobj(file.file, out)
 
-    prof.set_resume_path(str(dest_path.resolve()))
+    prof.set_resume_path(str(dest_path.resolve()), original_name=file.filename)
     logger.info("Resume saved to %s", dest_path)
 
-    return {"resume_path": str(dest_path)}
+    return {"resume_path": str(dest_path), "resume_name": file.filename}
 
 
 @app.post("/upload-cover-letter", tags=["profile"])
@@ -259,10 +259,10 @@ async def upload_cover_letter(file: UploadFile = File(...)) -> dict[str, str]:
     with dest_path.open("wb") as out:
         shutil.copyfileobj(file.file, out)
 
-    prof.set_cover_letter_path(str(dest_path.resolve()))
+    prof.set_cover_letter_path(str(dest_path.resolve()), original_name=file.filename)
     logger.info("Cover letter saved to %s", dest_path)
 
-    return {"cover_letter_path": str(dest_path)}
+    return {"cover_letter_path": str(dest_path), "cover_letter_name": file.filename}
 
 
 @app.post("/upload-reference-letter", tags=["profile"])
@@ -288,10 +288,10 @@ async def upload_reference_letter(file: UploadFile = File(...)) -> dict[str, str
     with dest_path.open("wb") as out:
         shutil.copyfileobj(file.file, out)
 
-    prof.set_reference_letter_path(str(dest_path.resolve()))
+    prof.set_reference_letter_path(str(dest_path.resolve()), original_name=file.filename)
     logger.info("Reference letter saved to %s", dest_path)
 
-    return {"reference_letter_path": str(dest_path)}
+    return {"reference_letter_path": str(dest_path), "reference_letter_name": file.filename}
 
 
 @app.post("/fill", response_model=FillResponse, tags=["automation"])

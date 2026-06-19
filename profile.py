@@ -21,18 +21,24 @@ DB_PATH = Path("db.sqlite")
 
 _CREATE_PROFILE_TABLE = """
 CREATE TABLE IF NOT EXISTS profile (
-    id                   INTEGER PRIMARY KEY CHECK (id = 1),
-    data                 TEXT    NOT NULL DEFAULT '{}',
-    resume_path          TEXT,
-    cover_letter_path    TEXT,
-    reference_letter_path TEXT,
-    updated_at           TEXT    NOT NULL
+    id                      INTEGER PRIMARY KEY CHECK (id = 1),
+    data                    TEXT    NOT NULL DEFAULT '{}',
+    resume_path             TEXT,
+    resume_name             TEXT,
+    cover_letter_path       TEXT,
+    cover_letter_name       TEXT,
+    reference_letter_path   TEXT,
+    reference_letter_name   TEXT,
+    updated_at              TEXT    NOT NULL
 );
 """
 
 _MIGRATE_STATEMENTS = [
     "ALTER TABLE profile ADD COLUMN cover_letter_path TEXT",
     "ALTER TABLE profile ADD COLUMN reference_letter_path TEXT",
+    "ALTER TABLE profile ADD COLUMN resume_name TEXT",
+    "ALTER TABLE profile ADD COLUMN cover_letter_name TEXT",
+    "ALTER TABLE profile ADD COLUMN reference_letter_name TEXT",
 ]
 
 _CREATE_FILL_LOGS_TABLE = """
@@ -106,7 +112,8 @@ def get_profile() -> dict[str, Any]:
     """
     with _connect() as conn:
         row = conn.execute(
-            "SELECT data, resume_path, cover_letter_path, reference_letter_path FROM profile WHERE id = 1"
+            "SELECT data, resume_path, resume_name, cover_letter_path, cover_letter_name, "
+            "reference_letter_path, reference_letter_name FROM profile WHERE id = 1"
         ).fetchone()
 
     if row is None:
@@ -114,8 +121,11 @@ def get_profile() -> dict[str, Any]:
 
     profile = json.loads(row["data"])
     profile["resumePath"] = row["resume_path"]
+    profile["resumeName"] = row["resume_name"]
     profile["coverLetterPath"] = row["cover_letter_path"]
+    profile["coverLetterName"] = row["cover_letter_name"]
     profile["referenceLetterPath"] = row["reference_letter_path"]
+    profile["referenceLetterName"] = row["reference_letter_name"]
     return profile
 
 
@@ -152,68 +162,71 @@ def save_profile(data: dict[str, Any]) -> dict[str, Any]:
     return get_profile()
 
 
-def set_resume_path(path: str) -> None:
-    """Store the filesystem path of the uploaded resume PDF.
-
-    Creates a blank profile row first if one does not exist yet, so that a
-    user can upload their resume before filling out the rest of their profile.
+def set_resume_path(path: str, original_name: str = "") -> None:
+    """Store the filesystem path and original filename of the uploaded resume PDF.
 
     Args:
-        path: Absolute or relative path to the resume PDF on disk.
+        path:          Absolute or relative path to the resume PDF on disk.
+        original_name: The original filename as provided by the user.
     """
     with _connect() as conn:
         conn.execute(
             """
-            INSERT INTO profile (id, data, resume_path, updated_at)
-            VALUES (1, '{}', ?, ?)
+            INSERT INTO profile (id, data, resume_path, resume_name, updated_at)
+            VALUES (1, '{}', ?, ?, ?)
             ON CONFLICT (id) DO UPDATE SET
                 resume_path = excluded.resume_path,
+                resume_name = excluded.resume_name,
                 updated_at  = excluded.updated_at
             """,
-            (path, _now_iso()),
+            (path, original_name, _now_iso()),
         )
         conn.commit()
 
     logger.info("Resume path set to %s", path)
 
 
-def set_cover_letter_path(path: str) -> None:
-    """Store the filesystem path of the uploaded cover letter PDF.
+def set_cover_letter_path(path: str, original_name: str = "") -> None:
+    """Store the filesystem path and original filename of the uploaded cover letter PDF.
 
     Args:
-        path: Absolute or relative path to the cover letter PDF on disk.
+        path:          Absolute or relative path to the cover letter PDF on disk.
+        original_name: The original filename as provided by the user.
     """
     with _connect() as conn:
         conn.execute(
             """
-            INSERT INTO profile (id, data, cover_letter_path, updated_at)
-            VALUES (1, '{}', ?, ?)
+            INSERT INTO profile (id, data, cover_letter_path, cover_letter_name, updated_at)
+            VALUES (1, '{}', ?, ?, ?)
             ON CONFLICT (id) DO UPDATE SET
                 cover_letter_path = excluded.cover_letter_path,
+                cover_letter_name = excluded.cover_letter_name,
                 updated_at        = excluded.updated_at
             """,
-            (path, _now_iso()),
+            (path, original_name, _now_iso()),
         )
         conn.commit()
     logger.info("Cover letter path set to %s", path)
 
 
-def set_reference_letter_path(path: str) -> None:
-    """Store the filesystem path of the uploaded reference letter PDF.
+def set_reference_letter_path(path: str, original_name: str = "") -> None:
+    """Store the filesystem path and original filename of the uploaded reference letter PDF.
 
     Args:
-        path: Absolute or relative path to the reference letter PDF on disk.
+        path:          Absolute or relative path to the reference letter PDF on disk.
+        original_name: The original filename as provided by the user.
     """
     with _connect() as conn:
         conn.execute(
             """
-            INSERT INTO profile (id, data, reference_letter_path, updated_at)
-            VALUES (1, '{}', ?, ?)
+            INSERT INTO profile (id, data, reference_letter_path, reference_letter_name, updated_at)
+            VALUES (1, '{}', ?, ?, ?)
             ON CONFLICT (id) DO UPDATE SET
                 reference_letter_path = excluded.reference_letter_path,
+                reference_letter_name = excluded.reference_letter_name,
                 updated_at            = excluded.updated_at
             """,
-            (path, _now_iso()),
+            (path, original_name, _now_iso()),
         )
         conn.commit()
     logger.info("Reference letter path set to %s", path)
@@ -433,6 +446,9 @@ def _empty_profile() -> dict[str, Any]:
         "gradYear": "",
         "customFields": {},
         "resumePath": None,
+        "resumeName": None,
         "coverLetterPath": None,
+        "coverLetterName": None,
         "referenceLetterPath": None,
+        "referenceLetterName": None,
     }
