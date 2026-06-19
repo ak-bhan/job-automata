@@ -6,6 +6,7 @@ const EMPTY_PROFILE = {
   lastName: '',
   email: '',
   phone: '',
+  phoneCountryCode: '',
   dateOfBirth: '',
   nationality: '',
   address: '',
@@ -36,11 +37,12 @@ function SectionHeading({ children }) {
   );
 }
 
-function Field({ label, children }) {
+function Field({ label, hint, children }) {
   return (
     <div>
       <label className="block text-sm font-medium text-slate-700 mb-1">{label}</label>
       {children}
+      {hint && <p className="text-xs text-slate-400 mt-1">{hint}</p>}
     </div>
   );
 }
@@ -190,8 +192,11 @@ export default function ProfilePage({ onProfileSaved }) {
           <Field label="Email">
             <TextInput name="email" type="email" value={profile.email} onChange={handleChange} placeholder="jane@example.com" />
           </Field>
-          <Field label="Phone">
-            <TextInput name="phone" type="tel" value={profile.phone} onChange={handleChange} placeholder="+1 555 000 0000" />
+          <Field label="Phone country code" hint="e.g. +49 — prepended automatically when the form has no separate dial code field">
+            <TextInput name="phoneCountryCode" type="tel" value={profile.phoneCountryCode} onChange={handleChange} placeholder="+49" />
+          </Field>
+          <Field label="Phone (without country code)">
+            <TextInput name="phone" type="tel" value={profile.phone} onChange={handleChange} placeholder="151 23456789" />
           </Field>
           <Field label="Date of birth">
             <TextInput name="dateOfBirth" type="date" value={profile.dateOfBirth} onChange={handleChange} />
