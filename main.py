@@ -399,6 +399,22 @@ async def get_applications(
     return prof.get_applications(limit=min(limit, 1000), from_date=from_date, to_date=to_date)
 
 
+@app.delete("/applications/{application_id}", tags=["applications"])
+async def delete_application(application_id: int) -> dict[str, str]:
+    """Delete a saved application by id.
+
+    Raises:
+        404: if no application with that id exists.
+    """
+    deleted = prof.delete_application(application_id)
+    if not deleted:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Application {application_id} not found.",
+        )
+    return {"status": "deleted"}
+
+
 @app.get("/applications/export", tags=["applications"])
 async def export_applications(
     from_date: str | None = None,
