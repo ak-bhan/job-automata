@@ -152,6 +152,7 @@ class FillResponse(BaseModel):
     fields_detected: int
     fields_filled: int
     fields_skipped: int
+    page_title: str
     log_id: int
     detail: list[dict[str, Any]]
 
@@ -357,6 +358,7 @@ async def fill(body: FillRequest) -> FillResponse:
         fields_detected=summary["fields_detected"],
         fields_filled=summary["fields_filled"],
         fields_skipped=summary["fields_skipped"],
+        page_title=summary.get("page_title", ""),
         log_id=log_id,
         detail=summary["detail"],
     )
