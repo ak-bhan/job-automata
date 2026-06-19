@@ -133,20 +133,33 @@ export async function markApplied(url, company = '', role = '') {
 }
 
 /**
- * Retrieve saved job applications.
+ * Retrieve saved job applications with optional date filtering.
+ * @param {string} [fromDate] - YYYY-MM-DD
+ * @param {string} [toDate]   - YYYY-MM-DD
  * @returns {Promise<Array>}
  */
-export async function getApplications() {
-  const res = await fetch(`${BASE}/applications`);
+export async function getApplications(fromDate = '', toDate = '') {
+  const params = new URLSearchParams();
+  if (fromDate) params.set('from_date', fromDate);
+  if (toDate) params.set('to_date', toDate);
+  const qs = params.toString() ? `?${params}` : '';
+  const res = await fetch(`${BASE}/applications${qs}`);
   if (!res.ok) await handleError(res);
   return res.json();
 }
 
 /**
- * Download all applications as a CSV file.
+ * Build the CSV export download URL with optional date filters.
+ * @param {string} [fromDate] - YYYY-MM-DD
+ * @param {string} [toDate]   - YYYY-MM-DD
+ * @returns {string}
  */
-export function exportApplicationsUrl() {
-  return `${BASE}/applications/export`;
+export function exportApplicationsUrl(fromDate = '', toDate = '') {
+  const params = new URLSearchParams();
+  if (fromDate) params.set('from_date', fromDate);
+  if (toDate) params.set('to_date', toDate);
+  const qs = params.toString() ? `?${params}` : '';
+  return `${BASE}/applications/export${qs}`;
 }
 
 /**
