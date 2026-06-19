@@ -326,25 +326,47 @@ def log_application(url: str, company: str = "", role: str = "") -> int:
     return row_id
 
 
-def get_applications(limit: int = 200) -> list[dict[str, Any]]:
+def get_applications(
+    limit: int = 200,
+    from_date: Optional[str] = None,
+    to_date: Optional[str] = None,
+) -> list[dict[str, Any]]:
     """Return saved applications, newest first.
 
     Args:
-        limit: Maximum number of rows to return.
+        limit:     Maximum number of rows to return.
+        from_date: Optional ISO date string (YYYY-MM-DD). Only return rows
+                   where applied_at >= from_date (inclusive, start of day).
+        to_date:   Optional ISO date string (YYYY-MM-DD). Only return rows
+                   where applied_at <= to_date (inclusive, end of day).
 
     Returns:
         List of dicts with ``id``, ``url``, ``company``, ``role``,
         ``status``, and ``applied_at``.
     """
+    conditions = []
+    params: list = []
+
+    if from_date:
+        conditions.append("applied_at >= ?")
+        params.append(f"{from_date}T00:00:00")
+    if to_date:
+        conditions.append("applied_at <= ?")
+        params.append(f"{to_date}T23:59:59")
+
+    where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+    params.append(limit)
+
     with _connect() as conn:
         rows = conn.execute(
-            """
+            f"""
             SELECT id, url, company, role, status, applied_at
             FROM applications
+            {where}
             ORDER BY id DESC
             LIMIT ?
             """,
-            (limit,),
+            params,
         ).fetchall()
 
     return [

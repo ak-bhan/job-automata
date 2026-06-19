@@ -383,19 +383,33 @@ async def mark_applied(body: MarkAppliedRequest) -> dict[str, Any]:
 
 
 @app.get("/applications", tags=["applications"])
-async def get_applications(limit: int = 200) -> list[dict[str, Any]]:
+async def get_applications(
+    limit: int = 200,
+    from_date: str | None = None,
+    to_date: str | None = None,
+) -> list[dict[str, Any]]:
     """Return saved job applications, newest first.
 
     Args:
-        limit: Maximum number of records to return (default 200).
+        limit:     Maximum number of records to return (default 200).
+        from_date: ISO date string (YYYY-MM-DD) — filter from this date.
+        to_date:   ISO date string (YYYY-MM-DD) — filter up to this date.
     """
-    return prof.get_applications(limit=min(limit, 1000))
+    return prof.get_applications(limit=min(limit, 1000), from_date=from_date, to_date=to_date)
 
 
 @app.get("/applications/export", tags=["applications"])
-async def export_applications() -> StreamingResponse:
-    """Download all saved job applications as a CSV file."""
-    applications = prof.get_applications(limit=10_000)
+async def export_applications(
+    from_date: str | None = None,
+    to_date: str | None = None,
+) -> StreamingResponse:
+    """Download saved job applications as a CSV file.
+
+    Args:
+        from_date: ISO date string (YYYY-MM-DD) — include applications on or after this date.
+        to_date:   ISO date string (YYYY-MM-DD) — include applications on or before this date.
+    """
+    applications = prof.get_applications(limit=10_000, from_date=from_date, to_date=to_date)
 
     output = io.StringIO()
     writer = csv.DictWriter(
