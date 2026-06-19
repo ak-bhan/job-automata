@@ -123,6 +123,7 @@ class ProfileBody(BaseModel):
     startDate: str = ""
     dateOfBirth: str = ""
     workAuth: str = ""
+    phoneCountryCode: str = ""
     university: str = ""
     degree: str = ""
     gradYear: str = ""

@@ -387,6 +387,7 @@ def _empty_profile() -> dict[str, Any]:
         "startDate": "",
         "dateOfBirth": "",
         "workAuth": "",
+        "phoneCountryCode": "",
         "university": "",
         "degree": "",
         "gradYear": "",
