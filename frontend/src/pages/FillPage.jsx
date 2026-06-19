@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { fillForm } from '../api.js';
+import { fillForm, markApplied } from '../api.js';
 
 const STATUS_BADGE = {
   filled: 'bg-green-100 text-green-700',
@@ -48,6 +48,13 @@ export default function FillPage() {
   const [error, setError] = useState('');
   const [showAll, setShowAll] = useState(false);
 
+  // Mark as applied state
+  const [company, setCompany] = useState('');
+  const [role, setRole] = useState('');
+  const [marking, setMarking] = useState(false);
+  const [marked, setMarked] = useState(false);
+  const [markError, setMarkError] = useState('');
+
   const handleFill = useCallback(async () => {
     const trimmed = url.trim();
     if (!trimmed) return;
@@ -55,6 +62,8 @@ export default function FillPage() {
     setResult(null);
     setError('');
     setShowAll(false);
+    setMarked(false);
+    setMarkError('');
     try {
       const data = await fillForm(trimmed);
       setResult(data);
@@ -64,6 +73,19 @@ export default function FillPage() {
       setFilling(false);
     }
   }, [url]);
+
+  const handleMarkApplied = async () => {
+    setMarking(true);
+    setMarkError('');
+    try {
+      await markApplied(url.trim(), company.trim(), role.trim());
+      setMarked(true);
+    } catch (err) {
+      setMarkError(err.message);
+    } finally {
+      setMarking(false);
+    }
+  };
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !filling) handleFill();
@@ -160,6 +182,59 @@ export default function FillPage() {
               color="border-amber-200 text-amber-700 bg-amber-50"
             />
           </div>
+
+          {/* Mark as Applied */}
+          {marked ? (
+            <div className="flex items-center gap-3 p-4 bg-green-50 border border-green-200 rounded-xl text-sm text-green-700 font-medium">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+              </svg>
+              Application saved! You can view all applications in the Applications tab.
+            </div>
+          ) : (
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 space-y-4">
+              <div>
+                <h2 className="text-sm font-semibold text-slate-700">Did you submit the form?</h2>
+                <p className="text-xs text-slate-400 mt-0.5">Save this application to your tracker. Company and role are optional.</p>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <input
+                  type="text"
+                  value={company}
+                  onChange={(e) => setCompany(e.target.value)}
+                  placeholder="Company name"
+                  className="rounded-lg border-slate-200 text-sm text-slate-900 placeholder:text-slate-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                />
+                <input
+                  type="text"
+                  value={role}
+                  onChange={(e) => setRole(e.target.value)}
+                  placeholder="Job title / role"
+                  className="rounded-lg border-slate-200 text-sm text-slate-900 placeholder:text-slate-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                />
+              </div>
+              {markError && (
+                <p className="text-xs text-red-600">{markError}</p>
+              )}
+              <button
+                onClick={handleMarkApplied}
+                disabled={marking}
+                className="inline-flex items-center gap-2 px-5 py-2.5 bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-lg shadow-sm transition-colors"
+              >
+                {marking ? (
+                  <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                  </svg>
+                ) : (
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                  </svg>
+                )}
+                {marking ? 'Saving…' : 'Mark as Applied'}
+              </button>
+            </div>
+          )}
 
           {/* Field detail table */}
           {detail.length > 0 && (
