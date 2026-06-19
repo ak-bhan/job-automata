@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { getProfile } from './api.js';
 import ProfilePage from './pages/ProfilePage.jsx';
 import ResumePage from './pages/ResumePage.jsx';
@@ -70,13 +70,15 @@ export default function App() {
       });
   }, []);
 
-  const pages = {
-    profile: <ProfilePage onProfileSaved={(name) => setUserName(name)} />,
+  const handleProfileSaved = useCallback((name) => setUserName(name), []);
+
+  const pages = useMemo(() => ({
+    profile: <ProfilePage onProfileSaved={handleProfileSaved} />,
     resume: <ResumePage />,
     fill: <FillPage />,
     applications: <ApplicationsPage />,
     logs: <LogsPage />,
-  };
+  }), [handleProfileSaved]);
 
   return (
     <div className="flex h-screen bg-slate-50 overflow-hidden">
