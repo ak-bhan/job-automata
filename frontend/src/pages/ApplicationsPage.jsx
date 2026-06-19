@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { getApplications, exportApplicationsUrl } from '../api.js';
+import { getApplications, exportApplicationsUrl, deleteApplication } from '../api.js';
 
 function formatDate(iso) {
   if (!iso) return '—';
@@ -18,6 +18,7 @@ export default function ApplicationsPage() {
   const [error, setError] = useState('');
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
+  const [deletingId, setDeletingId] = useState(null);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -29,6 +30,19 @@ export default function ApplicationsPage() {
   }, [fromDate, toDate]);
 
   useEffect(() => { load(); }, [load]);
+
+  const handleDelete = async (id) => {
+    if (!window.confirm('Delete this application?')) return;
+    setDeletingId(id);
+    try {
+      await deleteApplication(id);
+      setApplications((prev) => prev.filter((a) => a.id !== id));
+    } catch (err) {
+      alert(`Delete failed: ${err.message}`);
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   const clearFilters = () => {
     setFromDate('');
@@ -129,6 +143,7 @@ export default function ApplicationsPage() {
                 <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">URL</th>
                 <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Status</th>
                 <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Applied</th>
+                <th className="px-5 py-3"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
@@ -158,6 +173,25 @@ export default function ApplicationsPage() {
                   </td>
                   <td className="px-5 py-3 text-slate-500 whitespace-nowrap">
                     {formatDate(app.applied_at)}
+                  </td>
+                  <td className="px-5 py-3">
+                    <button
+                      onClick={() => handleDelete(app.id)}
+                      disabled={deletingId === app.id}
+                      className="text-slate-300 hover:text-red-500 disabled:opacity-50 transition-colors"
+                      title="Delete"
+                    >
+                      {deletingId === app.id ? (
+                        <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                        </svg>
+                      ) : (
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      )}
+                    </button>
                   </td>
                 </tr>
               ))}
