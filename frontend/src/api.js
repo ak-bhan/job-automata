@@ -163,6 +163,17 @@ export function exportApplicationsUrl(fromDate = '', toDate = '') {
 }
 
 /**
+ * Delete a saved application by id.
+ * @param {number} id
+ * @returns {Promise<Object>}
+ */
+export async function deleteApplication(id) {
+  const res = await fetch(`${BASE}/applications/${id}`, { method: 'DELETE' });
+  if (!res.ok) await handleError(res);
+  return res.json();
+}
+
+/**
  * Retrieve fill history logs.
  * @param {number} [limit=20] - Maximum number of log entries to return
  * @returns {Promise<Array>} Array of fill log objects
