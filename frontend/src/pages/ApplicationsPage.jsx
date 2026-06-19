@@ -178,7 +178,7 @@ export default function ApplicationsPage() {
                     <button
                       onClick={() => handleDelete(app.id)}
                       disabled={deletingId === app.id}
-                      className="text-slate-300 hover:text-red-500 disabled:opacity-50 transition-colors"
+                      className="text-slate-400 hover:text-red-500 disabled:opacity-50 transition-colors"
                       title="Delete"
                     >
                       {deletingId === app.id ? (
