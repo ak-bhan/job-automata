@@ -16,6 +16,8 @@ Endpoints
 """
 
 import asyncio
+import csv
+import io
 import logging
 import os
 import shutil
@@ -27,7 +29,7 @@ from typing import Any
 import uvicorn
 from fastapi import FastAPI, File, HTTPException, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, StreamingResponse
 from pydantic import BaseModel, HttpUrl
 
 import profile as prof
@@ -127,6 +129,14 @@ class ProfileBody(BaseModel):
     customFields: dict[str, Any] = {}
 
 
+class MarkAppliedRequest(BaseModel):
+    """Body for POST /applications."""
+
+    url: str
+    company: str = ""
+    role: str = ""
+
+
 class FillRequest(BaseModel):
     """Body for POST /fill."""
 
@@ -223,6 +233,64 @@ async def upload_resume(file: UploadFile = File(...)) -> dict[str, str]:
     return {"resume_path": str(dest_path)}
 
 
+@app.post("/upload-cover-letter", tags=["profile"])
+async def upload_cover_letter(file: UploadFile = File(...)) -> dict[str, str]:
+    """Accept a cover letter PDF and store it in the resumes/ directory.
+
+    Args:
+        file: Multipart file upload. Should be a PDF.
+
+    Raises:
+        422: if no file is provided.
+    """
+    if not file.filename:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="No filename provided.",
+        )
+
+    suffix = Path(file.filename).suffix or ".pdf"
+    dest_name = f"{uuid.uuid4().hex}{suffix}"
+    dest_path = RESUME_DIR / dest_name
+
+    with dest_path.open("wb") as out:
+        shutil.copyfileobj(file.file, out)
+
+    prof.set_cover_letter_path(str(dest_path.resolve()))
+    logger.info("Cover letter saved to %s", dest_path)
+
+    return {"cover_letter_path": str(dest_path)}
+
+
+@app.post("/upload-reference-letter", tags=["profile"])
+async def upload_reference_letter(file: UploadFile = File(...)) -> dict[str, str]:
+    """Accept a reference letter PDF and store it in the resumes/ directory.
+
+    Args:
+        file: Multipart file upload. Should be a PDF.
+
+    Raises:
+        422: if no file is provided.
+    """
+    if not file.filename:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="No filename provided.",
+        )
+
+    suffix = Path(file.filename).suffix or ".pdf"
+    dest_name = f"{uuid.uuid4().hex}{suffix}"
+    dest_path = RESUME_DIR / dest_name
+
+    with dest_path.open("wb") as out:
+        shutil.copyfileobj(file.file, out)
+
+    prof.set_reference_letter_path(str(dest_path.resolve()))
+    logger.info("Reference letter saved to %s", dest_path)
+
+    return {"reference_letter_path": str(dest_path)}
+
+
 @app.post("/fill", response_model=FillResponse, tags=["automation"])
 async def fill(body: FillRequest) -> FillResponse:
     """Open a visible browser and fill the job application form at *url*.
@@ -246,6 +314,8 @@ async def fill(body: FillRequest) -> FillResponse:
         )
 
     resume_path: str | None = profile_data.pop("resumePath", None)
+    cover_letter_path: str | None = profile_data.pop("coverLetterPath", None)
+    reference_letter_path: str | None = profile_data.pop("referenceLetterPath", None)
     url_str = str(body.url)
 
     try:
@@ -253,6 +323,8 @@ async def fill(body: FillRequest) -> FillResponse:
             url=url_str,
             profile=profile_data,
             resume_path=resume_path,
+            cover_letter_path=cover_letter_path,
+            reference_letter_path=reference_letter_path,
         )
     except Exception as exc:
         logger.exception("fill_form raised an unexpected error: %s", exc)
@@ -285,6 +357,58 @@ async def fill(body: FillRequest) -> FillResponse:
         fields_skipped=summary["fields_skipped"],
         log_id=log_id,
         detail=summary["detail"],
+    )
+
+
+@app.post("/applications", tags=["applications"])
+async def mark_applied(body: MarkAppliedRequest) -> dict[str, Any]:
+    """Record a job as applied.
+
+    Call this after you have reviewed and submitted the form in the browser.
+
+    Args:
+        body: JSON with ``url`` (required), ``company`` and ``role`` (optional).
+
+    Returns:
+        The saved application record.
+    """
+    row_id = prof.log_application(
+        url=body.url,
+        company=body.company,
+        role=body.role,
+    )
+    logger.info("Application marked as applied — url=%s id=%d", body.url, row_id)
+    return {"id": row_id, "url": body.url, "company": body.company, "role": body.role, "status": "applied"}
+
+
+@app.get("/applications", tags=["applications"])
+async def get_applications(limit: int = 200) -> list[dict[str, Any]]:
+    """Return saved job applications, newest first.
+
+    Args:
+        limit: Maximum number of records to return (default 200).
+    """
+    return prof.get_applications(limit=min(limit, 1000))
+
+
+@app.get("/applications/export", tags=["applications"])
+async def export_applications() -> StreamingResponse:
+    """Download all saved job applications as a CSV file."""
+    applications = prof.get_applications(limit=10_000)
+
+    output = io.StringIO()
+    writer = csv.DictWriter(
+        output,
+        fieldnames=["id", "company", "role", "url", "status", "applied_at"],
+    )
+    writer.writeheader()
+    writer.writerows(applications)
+
+    output.seek(0)
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=applications.csv"},
     )
 
 

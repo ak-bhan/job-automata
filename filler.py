@@ -42,7 +42,19 @@ _TEXT_INPUT_TYPES = frozenset({
 # Keywords in file-input signals that identify a resume / CV upload field.
 _RESUME_KEYWORDS = frozenset({
     "resume", "cv", "curriculum", "vitae", "lebenslauf",
-    "bewerbung", "attachment", "upload",
+    "bewerbung", "upload",
+})
+
+# Keywords for cover letter file inputs.
+_COVER_LETTER_KEYWORDS = frozenset({
+    "cover", "covering", "anschreiben", "motivation", "motivationsschreiben",
+    "lettre", "begeleidende",
+})
+
+# Keywords for reference letter file inputs.
+_REFERENCE_KEYWORDS = frozenset({
+    "reference", "referenz", "empfehlung", "recommendation",
+    "zeugnis", "arbeitszeugnis", "testimonial",
 })
 
 # How long to wait for the page to settle after navigation (ms).
@@ -140,10 +152,24 @@ async def _input_type(element: ElementHandle) -> str:
     return (t or "text").lower()
 
 
-async def _is_resume_file_input(signals: dict[str, str]) -> bool:
-    """Return True if a file input's signals suggest it accepts a resume/CV."""
+def _classify_file_input(signals: dict[str, str]) -> str | None:
+    """Return the document type a file input is likely expecting.
+
+    Checks signal text against keyword sets in priority order:
+    cover letter > reference letter > resume.  Returns ``None`` when no
+    keyword set matches (e.g. an unrelated attachment field).
+
+    Returns one of: ``"cover_letter"``, ``"reference_letter"``,
+    ``"resume"``, or ``None``.
+    """
     combined = " ".join(signals.values()).lower()
-    return any(kw in combined for kw in _RESUME_KEYWORDS)
+    if any(kw in combined for kw in _COVER_LETTER_KEYWORDS):
+        return "cover_letter"
+    if any(kw in combined for kw in _REFERENCE_KEYWORDS):
+        return "reference_letter"
+    if any(kw in combined for kw in _RESUME_KEYWORDS):
+        return "resume"
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -272,6 +298,8 @@ async def fill_form(
     url: str,
     profile: dict,
     resume_path: Optional[str] = None,
+    cover_letter_path: Optional[str] = None,
+    reference_letter_path: Optional[str] = None,
 ) -> dict:
     """Open a visible browser, navigate to *url*, and fill the form.
 
@@ -286,9 +314,9 @@ async def fill_form(
     Args:
         url:         Job application URL to navigate to.
         profile:     Profile dict as returned by :func:`profile.get_profile`.
-        resume_path: Absolute path to the resume PDF to attach to file
-                     inputs that look like resume / CV fields. Pass
-                     ``None`` to skip file attachments.
+        resume_path:           Absolute path to the resume PDF.
+        cover_letter_path:     Absolute path to the cover letter PDF.
+        reference_letter_path: Absolute path to the reference letter PDF.
 
     Returns:
         A summary dict with the following keys:
@@ -347,12 +375,24 @@ async def fill_form(
             }
 
             # ----------------------------------------------------------------
-            # File inputs: attach resume if signals suggest resume/CV field.
+            # File inputs: attach the right document based on field signals.
             # ----------------------------------------------------------------
             if itype == "file":
-                if resume_path and await _is_resume_file_input(signals):
-                    ok = await _attach_resume(element, resume_path)
-                    entry["matched_key"] = "resumePath"
+                doc_type = _classify_file_input(signals)
+                path_map = {
+                    "resume": resume_path,
+                    "cover_letter": cover_letter_path,
+                    "reference_letter": reference_letter_path,
+                }
+                key_map = {
+                    "resume": "resumePath",
+                    "cover_letter": "coverLetterPath",
+                    "reference_letter": "referenceLetterPath",
+                }
+                file_path = path_map.get(doc_type) if doc_type else None
+                if file_path:
+                    ok = await _attach_resume(element, file_path)
+                    entry["matched_key"] = key_map[doc_type]
                     entry["status"] = "filled" if ok else "error"
                     if ok:
                         fields_filled += 1

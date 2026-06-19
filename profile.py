@@ -21,12 +21,19 @@ DB_PATH = Path("db.sqlite")
 
 _CREATE_PROFILE_TABLE = """
 CREATE TABLE IF NOT EXISTS profile (
-    id          INTEGER PRIMARY KEY CHECK (id = 1),
-    data        TEXT    NOT NULL DEFAULT '{}',
-    resume_path TEXT,
-    updated_at  TEXT    NOT NULL
+    id                   INTEGER PRIMARY KEY CHECK (id = 1),
+    data                 TEXT    NOT NULL DEFAULT '{}',
+    resume_path          TEXT,
+    cover_letter_path    TEXT,
+    reference_letter_path TEXT,
+    updated_at           TEXT    NOT NULL
 );
 """
+
+_MIGRATE_STATEMENTS = [
+    "ALTER TABLE profile ADD COLUMN cover_letter_path TEXT",
+    "ALTER TABLE profile ADD COLUMN reference_letter_path TEXT",
+]
 
 _CREATE_FILL_LOGS_TABLE = """
 CREATE TABLE IF NOT EXISTS fill_logs (
@@ -37,6 +44,17 @@ CREATE TABLE IF NOT EXISTS fill_logs (
     fields_skipped  INTEGER NOT NULL DEFAULT 0,
     detail          TEXT    NOT NULL DEFAULT '{}',
     created_at      TEXT    NOT NULL
+);
+"""
+
+_CREATE_APPLICATIONS_TABLE = """
+CREATE TABLE IF NOT EXISTS applications (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    url        TEXT    NOT NULL,
+    company    TEXT    NOT NULL DEFAULT '',
+    role       TEXT    NOT NULL DEFAULT '',
+    status     TEXT    NOT NULL DEFAULT 'applied',
+    applied_at TEXT    NOT NULL
 );
 """
 
@@ -70,6 +88,13 @@ def init_db() -> None:
     with _connect() as conn:
         conn.execute(_CREATE_PROFILE_TABLE)
         conn.execute(_CREATE_FILL_LOGS_TABLE)
+        conn.execute(_CREATE_APPLICATIONS_TABLE)
+        # Apply any additive migrations for existing databases.
+        for stmt in _MIGRATE_STATEMENTS:
+            try:
+                conn.execute(stmt)
+            except sqlite3.OperationalError:
+                pass  # Column already exists — safe to ignore.
         conn.commit()
     logger.info("Database initialised at %s", DB_PATH)
 
@@ -80,13 +105,17 @@ def get_profile() -> dict[str, Any]:
     Returns an empty profile structure if no profile has been saved yet.
     """
     with _connect() as conn:
-        row = conn.execute("SELECT data, resume_path FROM profile WHERE id = 1").fetchone()
+        row = conn.execute(
+            "SELECT data, resume_path, cover_letter_path, reference_letter_path FROM profile WHERE id = 1"
+        ).fetchone()
 
     if row is None:
         return _empty_profile()
 
     profile = json.loads(row["data"])
     profile["resumePath"] = row["resume_path"]
+    profile["coverLetterPath"] = row["cover_letter_path"]
+    profile["referenceLetterPath"] = row["reference_letter_path"]
     return profile
 
 
@@ -101,8 +130,9 @@ def save_profile(data: dict[str, Any]) -> dict[str, Any]:
     Returns:
         The saved profile as returned by :func:`get_profile`.
     """
-    # Strip resumePath so it does not bleed into the JSON blob.
-    payload = {k: v for k, v in data.items() if k != "resumePath"}
+    # Strip file paths so they do not bleed into the JSON blob.
+    _path_keys = {"resumePath", "coverLetterPath", "referenceLetterPath"}
+    payload = {k: v for k, v in data.items() if k not in _path_keys}
     serialised = json.dumps(payload, ensure_ascii=False)
 
     with _connect() as conn:
@@ -145,6 +175,48 @@ def set_resume_path(path: str) -> None:
         conn.commit()
 
     logger.info("Resume path set to %s", path)
+
+
+def set_cover_letter_path(path: str) -> None:
+    """Store the filesystem path of the uploaded cover letter PDF.
+
+    Args:
+        path: Absolute or relative path to the cover letter PDF on disk.
+    """
+    with _connect() as conn:
+        conn.execute(
+            """
+            INSERT INTO profile (id, data, cover_letter_path, updated_at)
+            VALUES (1, '{}', ?, ?)
+            ON CONFLICT (id) DO UPDATE SET
+                cover_letter_path = excluded.cover_letter_path,
+                updated_at        = excluded.updated_at
+            """,
+            (path, _now_iso()),
+        )
+        conn.commit()
+    logger.info("Cover letter path set to %s", path)
+
+
+def set_reference_letter_path(path: str) -> None:
+    """Store the filesystem path of the uploaded reference letter PDF.
+
+    Args:
+        path: Absolute or relative path to the reference letter PDF on disk.
+    """
+    with _connect() as conn:
+        conn.execute(
+            """
+            INSERT INTO profile (id, data, reference_letter_path, updated_at)
+            VALUES (1, '{}', ?, ?)
+            ON CONFLICT (id) DO UPDATE SET
+                reference_letter_path = excluded.reference_letter_path,
+                updated_at            = excluded.updated_at
+            """,
+            (path, _now_iso()),
+        )
+        conn.commit()
+    logger.info("Reference letter path set to %s", path)
 
 
 def log_fill(
@@ -228,6 +300,66 @@ def get_fill_logs(limit: int = 50) -> list[dict[str, Any]]:
     ]
 
 
+def log_application(url: str, company: str = "", role: str = "") -> int:
+    """Record a job application as submitted.
+
+    Args:
+        url:     The job application URL that was submitted.
+        company: Optional company name.
+        role:    Optional job title / role name.
+
+    Returns:
+        The auto-incremented ``id`` of the newly created row.
+    """
+    with _connect() as conn:
+        cursor = conn.execute(
+            """
+            INSERT INTO applications (url, company, role, status, applied_at)
+            VALUES (?, ?, ?, 'applied', ?)
+            """,
+            (url, company, role, _now_iso()),
+        )
+        conn.commit()
+        row_id: int = cursor.lastrowid  # type: ignore[assignment]
+
+    logger.info("Application logged — url=%s", url)
+    return row_id
+
+
+def get_applications(limit: int = 200) -> list[dict[str, Any]]:
+    """Return saved applications, newest first.
+
+    Args:
+        limit: Maximum number of rows to return.
+
+    Returns:
+        List of dicts with ``id``, ``url``, ``company``, ``role``,
+        ``status``, and ``applied_at``.
+    """
+    with _connect() as conn:
+        rows = conn.execute(
+            """
+            SELECT id, url, company, role, status, applied_at
+            FROM applications
+            ORDER BY id DESC
+            LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
+
+    return [
+        {
+            "id": row["id"],
+            "url": row["url"],
+            "company": row["company"],
+            "role": row["role"],
+            "status": row["status"],
+            "applied_at": row["applied_at"],
+        }
+        for row in rows
+    ]
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -260,4 +392,6 @@ def _empty_profile() -> dict[str, Any]:
         "gradYear": "",
         "customFields": {},
         "resumePath": None,
+        "coverLetterPath": None,
+        "referenceLetterPath": None,
     }

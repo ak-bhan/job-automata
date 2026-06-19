@@ -69,6 +69,38 @@ export async function uploadResume(file) {
 }
 
 /**
+ * Upload a cover letter PDF file.
+ * @param {File} file - The PDF file to upload
+ * @returns {Promise<{cover_letter_path: string}>}
+ */
+export async function uploadCoverLetter(file) {
+  const formData = new FormData();
+  formData.append('file', file);
+  const res = await fetch(`${BASE}/upload-cover-letter`, {
+    method: 'POST',
+    body: formData,
+  });
+  if (!res.ok) await handleError(res);
+  return res.json();
+}
+
+/**
+ * Upload a reference letter PDF file.
+ * @param {File} file - The PDF file to upload
+ * @returns {Promise<{reference_letter_path: string}>}
+ */
+export async function uploadReferenceLetter(file) {
+  const formData = new FormData();
+  formData.append('file', file);
+  const res = await fetch(`${BASE}/upload-reference-letter`, {
+    method: 'POST',
+    body: formData,
+  });
+  if (!res.ok) await handleError(res);
+  return res.json();
+}
+
+/**
  * Trigger a form fill for the given URL.
  * @param {string} url - The job application URL
  * @returns {Promise<Object>} Fill summary with detected/filled/skipped counts and field details
@@ -81,6 +113,40 @@ export async function fillForm(url) {
   });
   if (!res.ok) await handleError(res);
   return res.json();
+}
+
+/**
+ * Mark a job as applied.
+ * @param {string} url
+ * @param {string} [company]
+ * @param {string} [role]
+ * @returns {Promise<Object>}
+ */
+export async function markApplied(url, company = '', role = '') {
+  const res = await fetch(`${BASE}/applications`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url, company, role }),
+  });
+  if (!res.ok) await handleError(res);
+  return res.json();
+}
+
+/**
+ * Retrieve saved job applications.
+ * @returns {Promise<Array>}
+ */
+export async function getApplications() {
+  const res = await fetch(`${BASE}/applications`);
+  if (!res.ok) await handleError(res);
+  return res.json();
+}
+
+/**
+ * Download all applications as a CSV file.
+ */
+export function exportApplicationsUrl() {
+  return `${BASE}/applications/export`;
 }
 
 /**
