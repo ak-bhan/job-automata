@@ -476,10 +476,13 @@ async def fill_form(
 
             detail.append(entry)
 
+        page_title = await page.title()
+
         summary = {
             "fields_detected": len(elements),
             "fields_filled": fields_filled,
             "fields_skipped": fields_skipped,
+            "page_title": page_title,
             "detail": detail,
         }
         logger.info(
