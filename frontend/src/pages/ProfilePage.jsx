@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { getProfile, saveProfile } from '../api.js';
 
 const EMPTY_PROFILE = {
+  salutation: '',
   firstName: '',
   lastName: '',
   email: '',
@@ -183,6 +184,9 @@ export default function ProfilePage({ onProfileSaved }) {
         {/* Personal */}
         <SectionHeading>Personal</SectionHeading>
         <div className="grid grid-cols-2 gap-4">
+          <Field label="Salutation" hint="e.g. Mr., Ms., Dr., Mx.">
+            <TextInput name="salutation" value={profile.salutation} onChange={handleChange} placeholder="Ms." />
+          </Field>
           <Field label="First name">
             <TextInput name="firstName" value={profile.firstName} onChange={handleChange} placeholder="Jane" />
           </Field>
