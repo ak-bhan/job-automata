@@ -143,7 +143,7 @@ export default function ApplicationsPage() {
                 <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">URL</th>
                 <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Status</th>
                 <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Applied</th>
-                <th className="px-5 py-3"></th>
+                <th className="px-5 py-3 w-10"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
@@ -174,11 +174,11 @@ export default function ApplicationsPage() {
                   <td className="px-5 py-3 text-slate-500 whitespace-nowrap">
                     {formatDate(app.applied_at)}
                   </td>
-                  <td className="px-5 py-3">
+                  <td className="px-3 py-3 w-10">
                     <button
                       onClick={() => handleDelete(app.id)}
                       disabled={deletingId === app.id}
-                      className="text-slate-400 hover:text-red-500 disabled:opacity-50 transition-colors"
+                      className="p-1 rounded text-slate-400 hover:text-red-500 hover:bg-red-50 disabled:opacity-50 transition-colors"
                       title="Delete"
                     >
                       {deletingId === app.id ? (
