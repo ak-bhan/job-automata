@@ -114,6 +114,19 @@ _PATTERNS: dict[str, dict[str, list[str]]] = {
         ],
     },
 
+    "phoneCountryCode": {
+        "autocomplete": [r"^tel[\s-]?country[\s-]?code$"],
+        "attr": [
+            r"country.?code", r"dial.?code", r"phone.?code",
+            r"calling.?code", r"tel.?country", r"phone.?prefix",
+            r"vorwahl", r"l[aä]ndervorwahl",
+        ],
+        "text": [
+            r"country\s*code", r"dial\s*code", r"calling\s*code",
+            r"phone\s*(?:country\s*)?code", r"vorwahl", r"l[aä]ndervorwahl",
+        ],
+    },
+
     "address": {
         "autocomplete": [r"^street[\s-]?address$", r"^address[\s-]?line[\s-]?1$"],
         "attr": [
