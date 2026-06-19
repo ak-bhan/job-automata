@@ -32,11 +32,11 @@ function baseName(path) {
 }
 
 /** Reusable upload card for a single document type */
-function DocumentUploadCard({ title, description, currentPath, uploadFn, pathKey, loading, onSuccess, onError }) {
+function DocumentUploadCard({ title, description, currentPath, currentName, uploadFn, pathKey, nameKey, loading, onSuccess, onError }) {
   const [selectedFile, setSelectedFile] = useState(null);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef(null);
-  const currentFileName = baseName(currentPath);
+  const currentFileName = currentName || baseName(currentPath);
 
   const handleFileChange = (e) => {
     const file = e.target.files[0];
@@ -48,7 +48,7 @@ function DocumentUploadCard({ title, description, currentPath, uploadFn, pathKey
     setUploading(true);
     try {
       const result = await uploadFn(selectedFile);
-      onSuccess(result[pathKey]);
+      onSuccess(result[pathKey], result[nameKey] || selectedFile.name);
       setSelectedFile(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
     } catch (err) {
@@ -136,8 +136,11 @@ function DocumentUploadCard({ title, description, currentPath, uploadFn, pathKey
 
 export default function ResumePage() {
   const [resumePath, setResumePath] = useState(null);
+  const [resumeName, setResumeName] = useState(null);
   const [coverLetterPath, setCoverLetterPath] = useState(null);
+  const [coverLetterName, setCoverLetterName] = useState(null);
   const [referenceLetterPath, setReferenceLetterPath] = useState(null);
+  const [referenceLetterName, setReferenceLetterName] = useState(null);
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [toast, setToast] = useState(null);
 
@@ -145,8 +148,11 @@ export default function ResumePage() {
     getProfile()
       .then((p) => {
         setResumePath(p.resumePath || null);
+        setResumeName(p.resumeName || null);
         setCoverLetterPath(p.coverLetterPath || null);
+        setCoverLetterName(p.coverLetterName || null);
         setReferenceLetterPath(p.referenceLetterPath || null);
+        setReferenceLetterName(p.referenceLetterName || null);
       })
       .catch((err) => showToast(`Could not load profile: ${err.message}`, 'error'))
       .finally(() => setLoadingProfile(false));
@@ -171,10 +177,12 @@ export default function ResumePage() {
           title="Resume"
           description="Attached to CV / Lebenslauf upload fields."
           currentPath={resumePath}
+          currentName={resumeName}
           uploadFn={uploadResume}
           pathKey="resume_path"
+          nameKey="resume_name"
           loading={loadingProfile}
-          onSuccess={(path) => { setResumePath(path); showToast('Resume uploaded successfully!'); }}
+          onSuccess={(path, name) => { setResumePath(path); setResumeName(name); showToast('Resume uploaded successfully!'); }}
           onError={(msg) => showToast(`Upload failed: ${msg}`, 'error')}
         />
 
@@ -182,10 +190,12 @@ export default function ResumePage() {
           title="Cover Letter"
           description="Attached to cover letter / Anschreiben upload fields."
           currentPath={coverLetterPath}
+          currentName={coverLetterName}
           uploadFn={uploadCoverLetter}
           pathKey="cover_letter_path"
+          nameKey="cover_letter_name"
           loading={loadingProfile}
-          onSuccess={(path) => { setCoverLetterPath(path); showToast('Cover letter uploaded successfully!'); }}
+          onSuccess={(path, name) => { setCoverLetterPath(path); setCoverLetterName(name); showToast('Cover letter uploaded successfully!'); }}
           onError={(msg) => showToast(`Upload failed: ${msg}`, 'error')}
         />
 
@@ -193,10 +203,12 @@ export default function ResumePage() {
           title="Reference Letter"
           description="Attached to reference / Zeugnis upload fields."
           currentPath={referenceLetterPath}
+          currentName={referenceLetterName}
           uploadFn={uploadReferenceLetter}
           pathKey="reference_letter_path"
+          nameKey="reference_letter_name"
           loading={loadingProfile}
-          onSuccess={(path) => { setReferenceLetterPath(path); showToast('Reference letter uploaded successfully!'); }}
+          onSuccess={(path, name) => { setReferenceLetterPath(path); setReferenceLetterName(name); showToast('Reference letter uploaded successfully!'); }}
           onError={(msg) => showToast(`Upload failed: ${msg}`, 'error')}
         />
       </div>
