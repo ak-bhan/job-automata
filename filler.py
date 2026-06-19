@@ -190,6 +190,63 @@ async def _fill_text(element: ElementHandle, value: str) -> bool:
         return False
 
 
+async def _fill_combobox(page: Page, element: ElementHandle, value: str) -> bool:
+    """Fill a typeahead / combobox input and select the best suggestion.
+
+    Strategy:
+    1. Click the element and type the value to trigger the suggestion list.
+    2. Wait briefly for a ``[role=listbox]`` or ``[role=option]`` to appear.
+    3. Click the first option whose text contains the typed value
+       (case-insensitive), falling back to the very first option if none match.
+    4. If no dropdown appears, the typed value is left as-is (plain text fill).
+
+    Returns True if a suggestion was selected or the value was typed, False on
+    hard errors.
+    """
+    _LISTBOX_TIMEOUT_MS = 1_500
+
+    try:
+        await element.click(timeout=_FILL_TIMEOUT_MS)
+        await element.fill(value, timeout=_FILL_TIMEOUT_MS)
+    except PlaywrightError as exc:
+        logger.debug("combobox click/fill failed: %s", exc)
+        return False
+
+    # Wait for any listbox/option container to appear.
+    try:
+        await page.wait_for_selector(
+            "[role='listbox'], [role='option'], [role='menu'], ul[class*='dropdown'], ul[class*='suggest']",
+            timeout=_LISTBOX_TIMEOUT_MS,
+            state="visible",
+        )
+    except PlaywrightError:
+        # No dropdown appeared — the typed value stands (e.g. plain text input).
+        logger.debug("combobox: no suggestion list appeared, leaving typed value")
+        return True
+
+    lower = value.lower()
+    try:
+        options = await page.query_selector_all(
+            "[role='option'], [role='listbox'] li, [role='menu'] li, ul[class*='dropdown'] li, ul[class*='suggest'] li"
+        )
+        best = None
+        for opt in options:
+            text = (await opt.text_content() or "").strip()
+            if lower in text.lower():
+                best = opt
+                break
+        if best is None and options:
+            best = options[0]
+        if best:
+            await best.click(timeout=_FILL_TIMEOUT_MS)
+            logger.debug("combobox: selected option %r for value %r", await best.text_content(), value)
+            return True
+    except PlaywrightError as exc:
+        logger.debug("combobox option click failed: %s", exc)
+
+    return False
+
+
 async def _fill_select(element: ElementHandle, value: str) -> bool:
     """Select the best-matching option in a ``<select>`` element.
 
@@ -458,7 +515,19 @@ async def fill_form(
             if tag == "select":
                 ok = await _fill_select(element, str_value)
             elif itype in _TEXT_INPUT_TYPES or tag == "textarea":
-                ok = await _fill_text(element, str_value)
+                # Check if this text input is actually a combobox/typeahead.
+                role = await element.get_attribute("role") or ""
+                has_list = await element.get_attribute("list")  # datalist
+                autocomplete_attr = await element.get_attribute("autocomplete") or ""
+                is_combobox = (
+                    role.lower() == "combobox"
+                    or has_list is not None
+                    or "combobox" in (await element.get_attribute("aria-haspopup") or "").lower()
+                )
+                if is_combobox:
+                    ok = await _fill_combobox(page, element, str_value)
+                else:
+                    ok = await _fill_text(element, str_value)
             else:
                 logger.debug("Unsupported input type '%s', skipping", itype)
                 entry["status"] = "unsupported_type"
