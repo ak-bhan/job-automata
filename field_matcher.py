@@ -97,7 +97,7 @@ _PATTERNS: dict[str, dict[str, list[str]]] = {
     "email": {
         "autocomplete": [r"^email$"],
         "attr": [r"e.?mail", r"email.?addr"],
-        "text": [r"e-?mail", r"electronic\s*mail"],
+        "text": [r"e[\s\-]?mail", r"electronic\s*mail"],
     },
 
     "phone": {
