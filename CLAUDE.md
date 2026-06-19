@@ -186,3 +186,4 @@ MIT — free to use, modify, and distribute.
 - Keep dependencies minimal — don't add packages unless absolutely necessary
 - The field_matcher.py is the core intelligence — spend extra care on comprehensive pattern matching
 - Structure field_matcher.py with a clean `match_field(signals: dict) -> Optional[str]` interface so LLM integration later is a drop-in replacement
+- Commit after every atomic change — one logical change per commit, do not batch unrelated changes together
