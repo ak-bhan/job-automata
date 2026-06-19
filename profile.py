@@ -389,6 +389,7 @@ def get_applications(
 def _empty_profile() -> dict[str, Any]:
     """Return a profile dict with every standard field set to an empty string."""
     return {
+        "salutation": "",
         "firstName": "",
         "lastName": "",
         "email": "",
