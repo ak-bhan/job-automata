@@ -355,6 +355,18 @@ async def fill_form(
         elements = await _scan_elements(page)
         logger.info("Detected %d form element(s)", len(elements))
 
+        # Pre-scan: determine whether a dedicated phone country code field
+        # exists on this page.  If it does, fill the phone number as stored
+        # (without prefix).  If it does not, prepend the country code.
+        has_country_code_field = False
+        for el in elements:
+            if await _is_fillable(el):
+                sig = await _collect_signals(el)
+                if match_field(sig) == "phoneCountryCode":
+                    has_country_code_field = True
+                    break
+        logger.debug("has_country_code_field=%s", has_country_code_field)
+
         fields_filled = 0
         fields_skipped = 0
         detail: list[dict] = []
@@ -433,6 +445,15 @@ async def fill_form(
                 continue
 
             str_value = str(profile_value)
+
+            # If this is the phone field and no dedicated country code field
+            # exists on the page, prepend the stored country code so the full
+            # international number is entered in the single phone field.
+            if matched_key == "phone" and not has_country_code_field:
+                country_code = str(profile.get("phoneCountryCode", "")).strip()
+                if country_code and not str_value.startswith(country_code):
+                    str_value = country_code + str_value
+                    logger.debug("Prepended country code %r to phone: %r", country_code, str_value)
 
             if tag == "select":
                 ok = await _fill_select(element, str_value)
