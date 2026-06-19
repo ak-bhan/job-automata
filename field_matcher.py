@@ -58,6 +58,18 @@ ATTR_WEIGHT = 3            # name= / id= attribute match outweighs free text
 
 _PATTERNS: dict[str, dict[str, list[str]]] = {
 
+    "salutation": {
+        "autocomplete": [r"^honorific[\s-]?prefix$"],
+        "attr": [
+            r"salutation", r"title", r"anrede", r"gender",
+            r"civilit[eé]", r"tratamiento",
+        ],
+        "text": [
+            r"salutation", r"\btitle\b", r"anrede",
+            r"civilit[eé]", r"tratamiento",
+        ],
+    },
+
     "firstName": {
         "autocomplete": [r"^given[\s-]?name$", r"^first[\s-]?name$"],
         "attr": [
@@ -143,10 +155,12 @@ _PATTERNS: dict[str, dict[str, list[str]]] = {
         "autocomplete": [r"^address[\s-]?level[\s-]?2$"],
         "attr": [
             r"city", r"town", r"municipality", r"locality",
+            r"\blocation\b",
             r"stadt", r"\bort\b", r"\bville\b", r"ciudad", r"cidade",
         ],
         "text": [
             r"city", r"town", r"municipality",
+            r"\blocation\b",
             r"stadt", r"\bort\b", r"\bville\b", r"ciudad", r"cidade",
         ],
     },
