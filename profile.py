@@ -300,6 +300,23 @@ def get_fill_logs(limit: int = 50) -> list[dict[str, Any]]:
     ]
 
 
+def delete_application(application_id: int) -> bool:
+    """Delete a saved application by id.
+
+    Returns:
+        True if a row was deleted, False if no row with that id existed.
+    """
+    with _connect() as conn:
+        cursor = conn.execute(
+            "DELETE FROM applications WHERE id = ?", (application_id,)
+        )
+        conn.commit()
+    deleted = cursor.rowcount > 0
+    if deleted:
+        logger.info("Application %d deleted", application_id)
+    return deleted
+
+
 def log_application(url: str, company: str = "", role: str = "") -> int:
     """Record a job application as submitted.
 
