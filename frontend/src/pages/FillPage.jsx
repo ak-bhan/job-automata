@@ -55,6 +55,33 @@ export default function FillPage() {
   const [marked, setMarked] = useState(false);
   const [markError, setMarkError] = useState('');
 
+  const inferFromTitle = useCallback((pageTitle, jobUrl) => {
+    // Common patterns: "Role at Company", "Role - Company", "Company | Role",
+    // "Company - Role", "Role | Company — Careers"
+    if (pageTitle) {
+      const atMatch = pageTitle.match(/^(.+?)\s+at\s+(.+?)(?:\s[|\-–—].*)?$/i);
+      if (atMatch) return { role: atMatch[1].trim(), company: atMatch[2].trim() };
+
+      const dashMatch = pageTitle.match(/^(.+?)\s*[|\-–—]\s*(.+?)(?:\s[|\-–—].*)?$/);
+      if (dashMatch) {
+        // Heuristic: shorter part is usually the company
+        const [a, b] = [dashMatch[1].trim(), dashMatch[2].trim()];
+        return a.length <= b.length
+          ? { company: a, role: b }
+          : { company: b, role: a };
+      }
+    }
+    // Fallback: extract company from domain (e.g. jobs.doctolib.com → Doctolib)
+    try {
+      const hostname = new URL(jobUrl).hostname;
+      const parts = hostname.replace(/^www\./, '').split('.');
+      const name = parts.length >= 2 ? parts[parts.length - 2] : parts[0];
+      return { company: name.charAt(0).toUpperCase() + name.slice(1), role: '' };
+    } catch {
+      return { company: '', role: '' };
+    }
+  }, []);
+
   const handleFill = useCallback(async () => {
     const trimmed = url.trim();
     if (!trimmed) return;
@@ -67,12 +94,15 @@ export default function FillPage() {
     try {
       const data = await fillForm(trimmed);
       setResult(data);
+      const inferred = inferFromTitle(data.page_title, trimmed);
+      if (inferred.company && !company) setCompany(inferred.company);
+      if (inferred.role && !role) setRole(inferred.role);
     } catch (err) {
       setError(err.message);
     } finally {
       setFilling(false);
     }
-  }, [url]);
+  }, [url, company, role, inferFromTitle]);
 
   const handleMarkApplied = async () => {
     setMarking(true);
