@@ -132,9 +132,16 @@ async def _collect_signals(element: ElementHandle) -> dict[str, str]:
 # ---------------------------------------------------------------------------
 
 async def _is_fillable(element: ElementHandle) -> bool:
-    """Return True if the element is visible, enabled, and not read-only."""
+    """Return True if the element is usable for filling.
+
+    File inputs are exempt from the visibility check because ATS platforms
+    (e.g. Personio) commonly hide the native <input type="file"> inside a
+    custom drag-and-drop widget. Playwright's set_input_files() works on
+    hidden file inputs directly without requiring them to be visible.
+    """
     try:
-        if not await element.is_visible():
+        itype = await _input_type(element)
+        if itype != "file" and not await element.is_visible():
             return False
         if await element.is_disabled():
             return False
