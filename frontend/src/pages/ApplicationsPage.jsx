@@ -134,7 +134,7 @@ export default function ApplicationsPage() {
           </p>
         </div>
       ) : (
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-100">
@@ -155,12 +155,12 @@ export default function ApplicationsPage() {
                   <td className="px-5 py-3 text-slate-600">
                     {app.role || <span className="text-slate-300">—</span>}
                   </td>
-                  <td className="px-5 py-3 max-w-xs">
+                  <td className="px-5 py-3" style={{maxWidth: '220px'}}>
                     <a
                       href={app.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-indigo-600 hover:text-indigo-800 truncate block"
+                      className="text-indigo-600 hover:text-indigo-800 block truncate"
                       title={app.url}
                     >
                       {app.url}
