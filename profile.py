@@ -435,6 +435,7 @@ def _empty_profile() -> dict[str, Any]:
         "currentTitle": "",
         "currentCompany": "",
         "yearsExp": "",
+        "languageSkills": "",
         "salaryExpect": "",
         "noticePeriod": "",
         "startDate": "",

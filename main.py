@@ -119,6 +119,7 @@ class ProfileBody(BaseModel):
     currentTitle: str = ""
     currentCompany: str = ""
     yearsExp: str = ""
+    languageSkills: str = ""
     salaryExpect: str = ""
     noticePeriod: str = ""
     startDate: str = ""
