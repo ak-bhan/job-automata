@@ -20,6 +20,7 @@ const EMPTY_PROFILE = {
   currentTitle: '',
   currentCompany: '',
   yearsExp: '',
+  languageSkills: '',
   workAuth: '',
   salaryExpect: '',
   noticePeriod: '',
@@ -262,6 +263,9 @@ export default function ProfilePage({ onProfileSaved }) {
             </Field>
             <Field label="Years of experience">
               <TextInput name="yearsExp" value={profile.yearsExp} onChange={handleChange} placeholder="5" />
+            </Field>
+            <Field label="Language skills" hint="e.g. English (C1), German (B2)">
+              <TextInput name="languageSkills" value={profile.languageSkills} onChange={handleChange} placeholder="English (C1), German (B2)" />
             </Field>
             <Field label="Work authorization">
               <TextInput name="workAuth" value={profile.workAuth} onChange={handleChange} placeholder="Authorized to work in the US" />
