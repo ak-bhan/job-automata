@@ -39,6 +39,37 @@ _TEXT_INPUT_TYPES = frozenset({
     "date", "month", "week", "time", "datetime-local", "color", "",
 })
 
+# CEFR level equivalence groups — ordered from highest to lowest.
+# Each group contains the canonical CEFR label plus synonyms that appear
+# in ATS dropdowns. Matching is case-insensitive and partial.
+_CEFR_GROUPS: list[tuple[str, list[str]]] = [
+    ("native", ["native", "muttersprache", "mother tongue", "first language",
+                "native speaker", "muttersprachler", "langue maternelle"]),
+    ("c2",     ["c2", "mastery", "proficient", "verhandlungssicher",
+                "fließend", "fliessend", "fluent", "bilingual", "advanced proficiency"]),
+    ("c1",     ["c1", "advanced", "c1-c2", "c1/c2", "effective operational proficiency"]),
+    ("b2",     ["b2", "upper intermediate", "upper-intermediate", "b1-b2",
+                "b1/b2", "vantage", "sehr gut", "good"]),
+    ("b1",     ["b1", "intermediate", "threshold", "a2-b1", "a2/b1",
+                "gut", "grundkenntnisse fortgeschritten"]),
+    ("a2",     ["a2", "elementary", "pre-intermediate", "waystage",
+                "grundkenntnisse", "basic", "basics", "a1-a2", "a1/a2"]),
+    ("a1",     ["a1", "beginner", "breakthrough", "anfänger", "debutant",
+                "notions", "rudimentary"]),
+]
+
+def _cefr_group_index(value: str) -> int:
+    """Return the index of the CEFR group that best matches *value*.
+
+    Lower index = higher proficiency. Returns -1 if no group matches.
+    """
+    v = value.lower().strip()
+    for i, (_, synonyms) in enumerate(_CEFR_GROUPS):
+        if any(s in v or v in s for s in synonyms):
+            return i
+    return -1
+
+
 # Keywords in file-input signals that identify a resume / CV upload field.
 _RESUME_KEYWORDS = frozenset({
     "resume", "cv", "curriculum", "vitae", "lebenslauf",
@@ -321,6 +352,62 @@ async def _fill_select(element: ElementHandle, value: str) -> bool:
     return False
 
 
+async def _fill_language_select(element: ElementHandle, value: str) -> bool:
+    """Select the closest CEFR-equivalent option in a language-level ``<select>``.
+
+    First tries the standard tiers from :func:`_fill_select`. If those all
+    fail, maps both the stored value and each option label to a CEFR group
+    index and picks the option whose group index is closest to the stored
+    value's group index.
+
+    Example: stored "C1" matches "C1-C2" (same group) or falls back to the
+    option nearest in proficiency (e.g. "advanced").
+    """
+    # Try standard matching first.
+    if await _fill_select(element, value):
+        return True
+
+    # CEFR proximity fallback.
+    target_idx = _cefr_group_index(value)
+    if target_idx == -1:
+        logger.debug("language select: stored value %r not in any CEFR group", value)
+        return False
+
+    options: list[dict] = await element.evaluate("""sel => {
+        return Array.from(sel.options).map(o => ({
+            value: o.value,
+            label: o.text.trim(),
+        }));
+    }""")
+
+    best_opt = None
+    best_distance = 999
+
+    for opt in options:
+        if not opt["label"] or not opt["value"]:
+            continue
+        opt_idx = _cefr_group_index(opt["label"])
+        if opt_idx == -1:
+            continue
+        distance = abs(opt_idx - target_idx)
+        if distance < best_distance:
+            best_distance = distance
+            best_opt = opt
+
+    if best_opt:
+        try:
+            await element.select_option(label=best_opt["label"], timeout=_FILL_TIMEOUT_MS)
+            logger.debug(
+                "language select CEFR match: %r -> %r (distance=%d)",
+                value, best_opt["label"], best_distance,
+            )
+            return True
+        except PlaywrightError as exc:
+            logger.debug("language select option click failed: %s", exc)
+
+    return False
+
+
 async def _attach_resume(element: ElementHandle, resume_path: str) -> bool:
     """Set the file input's value to the resume PDF path."""
     try:
@@ -519,7 +606,14 @@ async def fill_form(
                     str_value = country_code + str_value
                     logger.debug("Prepended country code %r to phone: %r", country_code, str_value)
 
-            if tag == "select":
+            _LANGUAGE_LEVEL_KEYS = frozenset({
+                "englishLevel", "germanLevel", "frenchLevel",
+                "spanishLevel", "italianLevel",
+            })
+
+            if tag == "select" and matched_key in _LANGUAGE_LEVEL_KEYS:
+                ok = await _fill_language_select(element, str_value)
+            elif tag == "select":
                 ok = await _fill_select(element, str_value)
             elif itype in _TEXT_INPUT_TYPES or tag == "textarea":
                 # Check if this text input is actually a combobox/typeahead.
