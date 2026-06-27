@@ -161,7 +161,10 @@ _PATTERNS: dict[str, dict[str, list[str]]] = {
         "text": [
             r"city", r"town", r"municipality",
             r"\blocation\b",
+            r"where\s+do\s+you\s+(?:currently\s+)?live",
+            r"current\s+(?:city|location|residence)",
             r"stadt", r"\bort\b", r"\bville\b", r"ciudad", r"cidade",
+            r"wohnort", r"aktueller\s+wohnort",
         ],
     },
 
@@ -284,6 +287,21 @@ _PATTERNS: dict[str, dict[str, list[str]]] = {
         "text": [
             r"graduation\s*year", r"year\s*of\s*graduation",
             r"graduation\s*date",
+        ],
+    },
+
+    "languageSkills": {
+        "autocomplete": [],
+        "attr": [
+            r"language.?skill", r"lang.?skill", r"english.?skill",
+            r"english.?level", r"english.?proficiency",
+            r"sprachkenntnisse", r"sprachniveau",
+        ],
+        "text": [
+            r"language\s*skills?", r"english\s*skills?",
+            r"english\s*(?:level|proficiency|knowledge)",
+            r"sprachkenntnisse", r"sprachniveau",
+            r"niveau\s*d.anglais", r"niveau\s*linguistique",
         ],
     },
 
