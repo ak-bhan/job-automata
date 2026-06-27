@@ -228,21 +228,50 @@ async def _fill_text(element: ElementHandle, value: str) -> bool:
         return False
 
 
-async def _fill_combobox(page: Page, element: ElementHandle, value: str) -> bool:
+_LANGUAGE_LEVEL_KEYS = frozenset({
+    "englishLevel", "germanLevel", "frenchLevel",
+    "spanishLevel", "italianLevel",
+})
+
+_LISTBOX_SELECTOR = (
+    "[role='option'], [role='listbox'] li, [role='menu'] li, "
+    "ul[class*='dropdown'] li, ul[class*='suggest'] li"
+)
+_LISTBOX_WAIT_SELECTOR = (
+    "[role='listbox'], [role='option'], [role='menu'], "
+    "ul[class*='dropdown'], ul[class*='suggest']"
+)
+_LISTBOX_TIMEOUT_MS = 1_500
+
+
+async def _open_combobox_options(page: Page, element: ElementHandle) -> list:
+    """Click the element to open its dropdown and return all visible option elements."""
+    try:
+        await element.click(timeout=_FILL_TIMEOUT_MS)
+        await page.wait_for_selector(_LISTBOX_WAIT_SELECTOR, timeout=_LISTBOX_TIMEOUT_MS, state="visible")
+        return await page.query_selector_all(_LISTBOX_SELECTOR)
+    except PlaywrightError:
+        return []
+
+
+async def _fill_combobox(
+    page: Page,
+    element: ElementHandle,
+    value: str,
+    cefr_fallback: bool = False,
+) -> bool:
     """Fill a typeahead / combobox input and select the best suggestion.
 
     Strategy:
     1. Click the element and type the value to trigger the suggestion list.
-    2. Wait briefly for a ``[role=listbox]`` or ``[role=option]`` to appear.
-    3. Click the first option whose text contains the typed value
-       (case-insensitive), falling back to the very first option if none match.
+    2. Wait briefly for a listbox / option list to appear.
+    3a. If *cefr_fallback* is True: collect all options by opening the dropdown
+        with an empty query, then pick the best by CEFR proximity rather than
+        text-contains (handles "Advanced" vs "C1", "C1-C2" vs "C1", etc).
+    3b. Otherwise: click the first option whose text contains the typed value,
+        falling back to the very first option.
     4. If no dropdown appears, the typed value is left as-is (plain text fill).
-
-    Returns True if a suggestion was selected or the value was typed, False on
-    hard errors.
     """
-    _LISTBOX_TIMEOUT_MS = 1_500
-
     try:
         await element.click(timeout=_FILL_TIMEOUT_MS)
         await element.fill(value, timeout=_FILL_TIMEOUT_MS)
@@ -250,34 +279,55 @@ async def _fill_combobox(page: Page, element: ElementHandle, value: str) -> bool
         logger.debug("combobox click/fill failed: %s", exc)
         return False
 
-    # Wait for any listbox/option container to appear.
+    # Wait for dropdown.
     try:
-        await page.wait_for_selector(
-            "[role='listbox'], [role='option'], [role='menu'], ul[class*='dropdown'], ul[class*='suggest']",
-            timeout=_LISTBOX_TIMEOUT_MS,
-            state="visible",
-        )
+        await page.wait_for_selector(_LISTBOX_WAIT_SELECTOR, timeout=_LISTBOX_TIMEOUT_MS, state="visible")
     except PlaywrightError:
-        # No dropdown appeared — the typed value stands (e.g. plain text input).
         logger.debug("combobox: no suggestion list appeared, leaving typed value")
         return True
 
-    lower = value.lower()
     try:
-        options = await page.query_selector_all(
-            "[role='option'], [role='listbox'] li, [role='menu'] li, ul[class*='dropdown'] li, ul[class*='suggest'] li"
-        )
-        best = None
-        for opt in options:
-            text = (await opt.text_content() or "").strip()
-            if lower in text.lower():
-                best = opt
-                break
-        if best is None and options:
-            best = options[0]
+        if cefr_fallback:
+            # Clear the input so the dropdown shows all options, not just
+            # those matching the typed CEFR code.
+            await element.fill("", timeout=_FILL_TIMEOUT_MS)
+            try:
+                await page.wait_for_selector(_LISTBOX_WAIT_SELECTOR, timeout=_LISTBOX_TIMEOUT_MS, state="visible")
+            except PlaywrightError:
+                pass
+            options = await page.query_selector_all(_LISTBOX_SELECTOR)
+            target_idx = _cefr_group_index(value)
+            best = None
+            best_distance = 999
+            for opt in options:
+                text = (await opt.text_content() or "").strip()
+                if not text:
+                    continue
+                opt_idx = _cefr_group_index(text)
+                if opt_idx == -1:
+                    continue
+                distance = abs(opt_idx - target_idx)
+                if distance < best_distance:
+                    best_distance = distance
+                    best = opt
+            # If CEFR matching found nothing, fall back to first option.
+            if best is None and options:
+                best = options[0]
+        else:
+            options = await page.query_selector_all(_LISTBOX_SELECTOR)
+            lower = value.lower()
+            best = None
+            for opt in options:
+                text = (await opt.text_content() or "").strip()
+                if lower in text.lower():
+                    best = opt
+                    break
+            if best is None and options:
+                best = options[0]
+
         if best:
             await best.click(timeout=_FILL_TIMEOUT_MS)
-            logger.debug("combobox: selected option %r for value %r", await best.text_content(), value)
+            logger.debug("combobox: selected %r for value %r (cefr=%s)", await best.text_content(), value, cefr_fallback)
             return True
     except PlaywrightError as exc:
         logger.debug("combobox option click failed: %s", exc)
@@ -606,11 +656,6 @@ async def fill_form(
                     str_value = country_code + str_value
                     logger.debug("Prepended country code %r to phone: %r", country_code, str_value)
 
-            _LANGUAGE_LEVEL_KEYS = frozenset({
-                "englishLevel", "germanLevel", "frenchLevel",
-                "spanishLevel", "italianLevel",
-            })
-
             if tag == "select" and matched_key in _LANGUAGE_LEVEL_KEYS:
                 ok = await _fill_language_select(element, str_value)
             elif tag == "select":
@@ -626,7 +671,10 @@ async def fill_form(
                     or "combobox" in (await element.get_attribute("aria-haspopup") or "").lower()
                 )
                 if is_combobox:
-                    ok = await _fill_combobox(page, element, str_value)
+                    ok = await _fill_combobox(
+                        page, element, str_value,
+                        cefr_fallback=matched_key in _LANGUAGE_LEVEL_KEYS,
+                    )
                 else:
                     ok = await _fill_text(element, str_value)
             else:
