@@ -20,7 +20,11 @@ const EMPTY_PROFILE = {
   currentTitle: '',
   currentCompany: '',
   yearsExp: '',
-  languageSkills: '',
+  englishLevel: '',
+  germanLevel: '',
+  frenchLevel: '',
+  spanishLevel: '',
+  italianLevel: '',
   workAuth: '',
   salaryExpect: '',
   noticePeriod: '',
@@ -264,8 +268,20 @@ export default function ProfilePage({ onProfileSaved }) {
             <Field label="Years of experience">
               <TextInput name="yearsExp" value={profile.yearsExp} onChange={handleChange} placeholder="5" />
             </Field>
-            <Field label="Language skills" hint="e.g. English (C1), German (B2)">
-              <TextInput name="languageSkills" value={profile.languageSkills} onChange={handleChange} placeholder="English (C1), German (B2)" />
+            <Field label="English level" hint="e.g. Native, C1, B2">
+              <TextInput name="englishLevel" value={profile.englishLevel} onChange={handleChange} placeholder="C1" />
+            </Field>
+            <Field label="German level">
+              <TextInput name="germanLevel" value={profile.germanLevel} onChange={handleChange} placeholder="B2" />
+            </Field>
+            <Field label="French level">
+              <TextInput name="frenchLevel" value={profile.frenchLevel} onChange={handleChange} placeholder="A2" />
+            </Field>
+            <Field label="Spanish level">
+              <TextInput name="spanishLevel" value={profile.spanishLevel} onChange={handleChange} placeholder="B1" />
+            </Field>
+            <Field label="Italian level">
+              <TextInput name="italianLevel" value={profile.italianLevel} onChange={handleChange} placeholder="A1" />
             </Field>
             <Field label="Work authorization">
               <TextInput name="workAuth" value={profile.workAuth} onChange={handleChange} placeholder="Authorized to work in the US" />
