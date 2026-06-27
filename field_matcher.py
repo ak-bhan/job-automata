@@ -290,18 +290,50 @@ _PATTERNS: dict[str, dict[str, list[str]]] = {
         ],
     },
 
-    "languageSkills": {
+    "englishLevel": {
         "autocomplete": [],
-        "attr": [
-            r"language.?skill", r"lang.?skill", r"english.?skill",
-            r"english.?level", r"english.?proficiency",
-            r"sprachkenntnisse", r"sprachniveau",
-        ],
+        "attr": [r"english.?(?:skill|level|proficiency|knowledge|lang)"],
         "text": [
-            r"language\s*skills?", r"english\s*skills?",
-            r"english\s*(?:level|proficiency|knowledge)",
-            r"sprachkenntnisse", r"sprachniveau",
-            r"niveau\s*d.anglais", r"niveau\s*linguistique",
+            r"english\s*(?:skills?|level|proficiency|knowledge|language)",
+            r"niveau\s*d.anglais", r"inglese",
+        ],
+    },
+
+    "germanLevel": {
+        "autocomplete": [],
+        "attr": [r"german.?(?:skill|level|proficiency|knowledge|lang)", r"deutsch.?(?:kenntnis|niveau|level)"],
+        "text": [
+            r"german\s*(?:skills?|level|proficiency|knowledge|language)",
+            r"deutschkenntnisse", r"deutsch(?:es)?\s*niveau",
+            r"niveau\s*d.allemand", r"tedesco",
+        ],
+    },
+
+    "frenchLevel": {
+        "autocomplete": [],
+        "attr": [r"french.?(?:skill|level|proficiency|knowledge|lang)", r"franz[oö]sisch.?(?:kenntnis|niveau|level)"],
+        "text": [
+            r"french\s*(?:skills?|level|proficiency|knowledge|language)",
+            r"franz[oö]sischkenntnisse",
+            r"niveau\s*(?:de\s*)?fran[cç]ais", r"francese",
+        ],
+    },
+
+    "spanishLevel": {
+        "autocomplete": [],
+        "attr": [r"spanish.?(?:skill|level|proficiency|knowledge|lang)", r"spanisch.?(?:kenntnis|niveau|level)"],
+        "text": [
+            r"spanish\s*(?:skills?|level|proficiency|knowledge|language)",
+            r"spanischkenntnisse", r"espagnol", r"spagnolo",
+        ],
+    },
+
+    "italianLevel": {
+        "autocomplete": [],
+        "attr": [r"italian.?(?:skill|level|proficiency|knowledge|lang)", r"italienisch.?(?:kenntnis|niveau|level)"],
+        "text": [
+            r"italian\s*(?:skills?|level|proficiency|knowledge|language)",
+            r"italienischkenntnisse", r"italien", r"italiano",
         ],
     },
 
