@@ -183,3 +183,59 @@ export async function getLogs(limit = 20) {
   if (!res.ok) await handleError(res);
   return res.json();
 }
+
+/**
+ * Retrieve all Q&A pairs.
+ * @returns {Promise<Array>}
+ */
+export async function getQAPairs() {
+  const res = await fetch(`${BASE}/qa`);
+  if (!res.ok) await handleError(res);
+  return res.json();
+}
+
+/**
+ * Add a new Q&A pair.
+ * @param {string} question
+ * @param {string} answer
+ * @param {string} [tags]
+ * @returns {Promise<Object>}
+ */
+export async function addQAPair(question, answer, tags = '') {
+  const res = await fetch(`${BASE}/qa`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ question, answer, tags }),
+  });
+  if (!res.ok) await handleError(res);
+  return res.json();
+}
+
+/**
+ * Update an existing Q&A pair.
+ * @param {number} id
+ * @param {string} question
+ * @param {string} answer
+ * @param {string} [tags]
+ * @returns {Promise<Object>}
+ */
+export async function updateQAPair(id, question, answer, tags = '') {
+  const res = await fetch(`${BASE}/qa/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ question, answer, tags }),
+  });
+  if (!res.ok) await handleError(res);
+  return res.json();
+}
+
+/**
+ * Delete a Q&A pair.
+ * @param {number} id
+ * @returns {Promise<Object>}
+ */
+export async function deleteQAPair(id) {
+  const res = await fetch(`${BASE}/qa/${id}`, { method: 'DELETE' });
+  if (!res.ok) await handleError(res);
+  return res.json();
+}

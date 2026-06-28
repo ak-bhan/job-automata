@@ -10,6 +10,7 @@ Public interface
 """
 
 import logging
+import re
 from pathlib import Path
 from typing import Optional
 
@@ -508,6 +509,56 @@ async def _scan_elements(page: Page) -> list[ElementHandle]:
 # Public interface
 # ---------------------------------------------------------------------------
 
+def _match_question(label: str, qa_pairs: list) -> Optional[str]:
+    """Return the answer whose question best matches *label* using Jaccard similarity.
+
+    Tokenises both strings to lowercase word sets and computes the Jaccard
+    index (|intersection| / |union|).  Returns the answer only when the best
+    score exceeds 0.25 to avoid spurious matches.
+
+    Args:
+        label:    The form field label / aria-label / placeholder text.
+        qa_pairs: List of dicts with at least ``question`` and ``answer`` keys.
+
+    Returns:
+        The matching answer string, or ``None`` if no pair scores high enough.
+    """
+    if not label or not qa_pairs:
+        return None
+
+    # Strip punctuation, lowercase, split into words.
+    def _tokens(text: str) -> set[str]:
+        return set(re.sub(r"[^\w\s]", " ", text.lower()).split())
+
+    label_tokens = _tokens(label)
+    if not label_tokens:
+        return None
+
+    best_score = 0.0
+    best_answer: Optional[str] = None
+
+    for pair in qa_pairs:
+        question = pair.get("question", "")
+        answer = pair.get("answer", "")
+        if not question or not answer:
+            continue
+        q_tokens = _tokens(question)
+        if not q_tokens:
+            continue
+        intersection = label_tokens & q_tokens
+        union = label_tokens | q_tokens
+        score = len(intersection) / len(union)
+        if score > best_score:
+            best_score = score
+            best_answer = answer
+
+    _MATCH_THRESHOLD = 0.25
+    if best_score >= _MATCH_THRESHOLD:
+        logger.debug("Q&A match: score=%.2f label=%r", best_score, label)
+        return best_answer
+    return None
+
+
 async def fill_form(
     url: str,
     profile: dict,
@@ -517,6 +568,7 @@ async def fill_form(
     cover_letter_name: Optional[str] = None,
     reference_letter_path: Optional[str] = None,
     reference_letter_name: Optional[str] = None,
+    qa_pairs: list = [],
 ) -> dict:
     """Open a visible browser, navigate to *url*, and fill the form.
 
@@ -537,6 +589,9 @@ async def fill_form(
         cover_letter_name:      Original filename to present to the form.
         reference_letter_path:  Absolute path to the reference letter PDF.
         reference_letter_name:  Original filename to present to the form.
+        qa_pairs:               List of Q&A dicts (question/answer) used to
+                                fill screening question textareas that have no
+                                profile-key match.
 
     Returns:
         A summary dict with the following keys:
@@ -658,6 +713,27 @@ async def fill_form(
             entry["matched_key"] = matched_key
 
             if matched_key is None:
+                # For textarea fields, try matching against Q&A pairs before giving up.
+                if tag == "textarea" and qa_pairs:
+                    # Build a combined label string from all available signals.
+                    candidate_label = " ".join(filter(None, [
+                        signals.get("label", ""),
+                        signals.get("aria_label", ""),
+                        signals.get("placeholder", ""),
+                        signals.get("name", ""),
+                    ]))
+                    qa_answer = _match_question(candidate_label, qa_pairs)
+                    if qa_answer:
+                        ok = await _fill_text(element, qa_answer)
+                        entry["matched_key"] = "qa_answer"
+                        entry["status"] = "filled" if ok else "error"
+                        if ok:
+                            fields_filled += 1
+                            logger.debug("Q&A filled textarea: label=%r", candidate_label)
+                        else:
+                            fields_skipped += 1
+                        detail.append(entry)
+                        continue
                 entry["status"] = "no_match"
                 fields_skipped += 1
                 detail.append(entry)
