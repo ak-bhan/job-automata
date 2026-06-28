@@ -415,6 +415,12 @@ _PATTERNS: dict[str, dict[str, list[str]]] = {
         ],
     },
 
+    "ageRange": {
+        "autocomplete": [],
+        "attr": [r"age.?range", r"age.?group", r"age.?bracket"],
+        "text": [r"age\s*range", r"age\s*group", r"age\s*bracket", r"what\s+is\s+your\s+age"],
+    },
+
     "dateOfBirth": {
         "autocomplete": [r"^bday$", r"^bday[\s-]?day$", r"^bday[\s-]?month$", r"^bday[\s-]?year$"],
         "attr": [

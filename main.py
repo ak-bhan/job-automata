@@ -23,6 +23,7 @@ import os
 import shutil
 import uuid
 from contextlib import asynccontextmanager
+from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -34,6 +35,37 @@ from pydantic import BaseModel, HttpUrl
 
 import profile as prof
 import filler
+
+
+def _age_range_from_dob(dob_str: str) -> str:
+    """Return the Lever-style age-range bucket string derived from a date-of-birth.
+
+    Args:
+        dob_str: ISO date string (YYYY-MM-DD) as stored in the profile.
+
+    Returns:
+        One of the standard Lever age-range option labels, or an empty string
+        if the date cannot be parsed.
+    """
+    try:
+        dob = date.fromisoformat(dob_str)
+    except (ValueError, TypeError):
+        return ""
+    today = date.today()
+    age = today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
+    if age <= 17:
+        return "17 or younger"
+    if age <= 20:
+        return "18-20"
+    if age <= 29:
+        return "21-29"
+    if age <= 39:
+        return "30-39"
+    if age <= 49:
+        return "40-49"
+    if age <= 59:
+        return "50-59"
+    return "60 or older"
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -330,6 +362,12 @@ async def fill(body: FillRequest) -> FillResponse:
     reference_letter_name: str | None = profile_data.pop("referenceLetterName", None)
     url_str = str(body.url)
     qa_pairs = prof.get_qa_pairs()
+
+    # Derive age range from dateOfBirth so age-range dropdowns can be filled
+    # automatically without storing a separate field.
+    dob = profile_data.get("dateOfBirth", "")
+    if dob:
+        profile_data["ageRange"] = _age_range_from_dob(dob)
 
     # page_title_ref is populated after fill_form returns but before the user
     # submits, so the on_submitted callback can use it for company/role inference.
