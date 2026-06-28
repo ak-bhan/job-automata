@@ -328,6 +328,7 @@ async def fill(body: FillRequest) -> FillResponse:
     reference_letter_path: str | None = profile_data.pop("referenceLetterPath", None)
     reference_letter_name: str | None = profile_data.pop("referenceLetterName", None)
     url_str = str(body.url)
+    qa_pairs = prof.get_qa_pairs()
 
     try:
         summary = await filler.fill_form(
@@ -339,6 +340,7 @@ async def fill(body: FillRequest) -> FillResponse:
             cover_letter_name=cover_letter_name,
             reference_letter_path=reference_letter_path,
             reference_letter_name=reference_letter_name,
+            qa_pairs=qa_pairs,
         )
     except Exception as exc:
         logger.exception("fill_form raised an unexpected error: %s", exc)
@@ -373,6 +375,43 @@ async def fill(body: FillRequest) -> FillResponse:
         log_id=log_id,
         detail=summary["detail"],
     )
+
+
+class QAPairBody(BaseModel):
+    """Body for POST /qa and PUT /qa/{id}."""
+    question: str
+    answer: str
+    tags: str = ""
+
+
+@app.get("/qa", tags=["qa"])
+async def get_qa_pairs() -> list[dict[str, Any]]:
+    """Return all saved Q&A pairs."""
+    return prof.get_qa_pairs()
+
+
+@app.post("/qa", tags=["qa"])
+async def add_qa_pair(body: QAPairBody) -> dict[str, Any]:
+    """Add a new Q&A pair."""
+    return prof.add_qa_pair(body.question, body.answer, body.tags)
+
+
+@app.put("/qa/{pair_id}", tags=["qa"])
+async def update_qa_pair(pair_id: int, body: QAPairBody) -> dict[str, str]:
+    """Update an existing Q&A pair."""
+    updated = prof.update_qa_pair(pair_id, body.question, body.answer, body.tags)
+    if not updated:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Q&A pair {pair_id} not found.")
+    return {"status": "updated"}
+
+
+@app.delete("/qa/{pair_id}", tags=["qa"])
+async def delete_qa_pair(pair_id: int) -> dict[str, str]:
+    """Delete a Q&A pair."""
+    deleted = prof.delete_qa_pair(pair_id)
+    if not deleted:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Q&A pair {pair_id} not found.")
+    return {"status": "deleted"}
 
 
 @app.post("/applications", tags=["applications"])
