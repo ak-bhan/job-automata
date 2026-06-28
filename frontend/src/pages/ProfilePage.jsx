@@ -3,6 +3,7 @@ import { getProfile, saveProfile } from '../api.js';
 
 const EMPTY_PROFILE = {
   salutation: '',
+  pronouns: '',
   firstName: '',
   lastName: '',
   email: '',
@@ -191,6 +192,26 @@ export default function ProfilePage({ onProfileSaved }) {
         <div className="grid grid-cols-2 gap-4">
           <Field label="Salutation" hint="e.g. Mr., Ms., Dr., Mx.">
             <TextInput name="salutation" value={profile.salutation} onChange={handleChange} placeholder="Ms." />
+          </Field>
+          <Field label="Pronouns" hint="Shown on Lever and similar forms">
+            <select
+              name="pronouns"
+              value={profile.pronouns}
+              onChange={handleChange}
+              className="block w-full rounded-lg border-slate-200 bg-white text-slate-900 text-sm shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+            >
+              <option value="">— select —</option>
+              <option value="He/him">He/him</option>
+              <option value="She/her">She/her</option>
+              <option value="They/them">They/them</option>
+              <option value="Xe/xem">Xe/xem</option>
+              <option value="Ze/hir">Ze/hir</option>
+              <option value="Ey/em">Ey/em</option>
+              <option value="Hir/hir">Hir/hir</option>
+              <option value="Fae/faer">Fae/faer</option>
+              <option value="Hu/hu">Hu/hu</option>
+              <option value="Use name only">Use name only</option>
+            </select>
           </Field>
           <Field label="First name">
             <TextInput name="firstName" value={profile.firstName} onChange={handleChange} placeholder="Jane" />

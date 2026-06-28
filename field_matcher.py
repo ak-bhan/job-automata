@@ -70,6 +70,12 @@ _PATTERNS: dict[str, dict[str, list[str]]] = {
         ],
     },
 
+    "pronouns": {
+        "autocomplete": [],
+        "attr": [r"pronoun"],
+        "text": [r"pronoun"],
+    },
+
     "firstName": {
         "autocomplete": [r"^given[\s-]?name$", r"^first[\s-]?name$"],
         "attr": [
@@ -204,13 +210,19 @@ _PATTERNS: dict[str, dict[str, list[str]]] = {
 
     "linkedin": {
         "autocomplete": [],
-        "attr": [r"linkedin", r"linked.in"],
+        "attr": [
+            r"linkedin", r"linked.in",
+            r"urls\s*\[?\s*linkedin",   # Lever: urls[LinkedIn]
+        ],
         "text": [r"linkedin", r"linked\s*in"],
     },
 
     "github": {
         "autocomplete": [],
-        "attr": [r"github", r"git.?hub"],
+        "attr": [
+            r"github", r"git.?hub",
+            r"urls\s*\[?\s*github",     # Lever: urls[GitHub]
+        ],
         "text": [r"github", r"git\s*hub"],
     },
 
@@ -219,6 +231,8 @@ _PATTERNS: dict[str, dict[str, list[str]]] = {
         "attr": [
             r"portfolio", r"personal.?site", r"website", r"web.?page",
             r"personal.?url", r"homepage",
+            r"urls\s*\[?\s*portfolio",  # Lever: urls[Portfolio]
+            r"urls\s*\[?\s*other",      # Lever: urls[Other] → portfolio fallback
         ],
         "text": [
             r"portfolio", r"personal\s*(?:website|site|page|url)", r"homepage",
@@ -246,6 +260,7 @@ _PATTERNS: dict[str, dict[str, list[str]]] = {
             r"company", r"employer", r"organization", r"organisation",
             r"current.?company", r"current.?employer",
             r"unternehmen", r"firma", r"entreprise",
+            r"^\borg\b$",   # Lever uses name="org"
         ],
         "text": [
             r"(?:current\s+)?company", r"(?:current\s+)?employer",

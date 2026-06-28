@@ -104,6 +104,7 @@ class ProfileBody(BaseModel):
     model_config = {"extra": "allow"}
 
     salutation: str = ""
+    pronouns: str = ""
     firstName: str = ""
     lastName: str = ""
     email: str = ""

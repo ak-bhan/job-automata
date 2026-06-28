@@ -39,6 +39,7 @@ _MIGRATE_STATEMENTS = [
     "ALTER TABLE profile ADD COLUMN resume_name TEXT",
     "ALTER TABLE profile ADD COLUMN cover_letter_name TEXT",
     "ALTER TABLE profile ADD COLUMN reference_letter_name TEXT",
+    # pronouns stored inside the JSON data blob — no column migration needed
 ]
 
 _CREATE_FILL_LOGS_TABLE = """
@@ -474,6 +475,7 @@ def _empty_profile() -> dict[str, Any]:
     """Return a profile dict with every standard field set to an empty string."""
     return {
         "salutation": "",
+        "pronouns": "",
         "firstName": "",
         "lastName": "",
         "email": "",
