@@ -61,7 +61,7 @@ _PATTERNS: dict[str, dict[str, list[str]]] = {
     "salutation": {
         "autocomplete": [r"^honorific[\s-]?prefix$"],
         "attr": [
-            r"salutation", r"title", r"anrede", r"gender",
+            r"salutation", r"title", r"anrede",
             r"civilit[eé]", r"tratamiento",
         ],
         "text": [
@@ -74,6 +74,25 @@ _PATTERNS: dict[str, dict[str, list[str]]] = {
         "autocomplete": [],
         "attr": [r"pronoun"],
         "text": [r"pronoun"],
+    },
+
+    "ethnicity": {
+        "autocomplete": [],
+        "attr": [r"ethnic(?:ity)?", r"race"],
+        "text": [
+            r"ethnic(?:ity)?", r"race", r"racial",
+            r"i\s+identify\s+my\s+ethnic",
+        ],
+    },
+
+    "gender": {
+        "autocomplete": [],
+        "attr": [r"\bgender\b", r"\bsex\b"],
+        "text": [
+            r"\bgender\b",
+            r"what\s+gender\s+do\s+you\s+identify",
+            r"i\s+identify\s+(?:my\s+)?(?:gender|as)",
+        ],
     },
 
     "firstName": {
@@ -492,7 +511,7 @@ def _score_candidate(profile_key: str, signals: dict[str, str]) -> int:
                     break
 
     # free-text signals — weaker, but still useful
-    for text_key in ("label", "placeholder", "aria_label"):
+    for text_key in ("label", "placeholder", "aria_label", "group_label"):
         value = signals.get(text_key, "")
         if value:
             for pat in patterns.get("text", []):

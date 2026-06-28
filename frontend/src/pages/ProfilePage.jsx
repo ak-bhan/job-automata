@@ -4,6 +4,8 @@ import { getProfile, saveProfile } from '../api.js';
 const EMPTY_PROFILE = {
   salutation: '',
   pronouns: '',
+  gender: '',
+  ethnicity: '',
   firstName: '',
   lastName: '',
   email: '',
@@ -213,6 +215,20 @@ export default function ProfilePage({ onProfileSaved }) {
               <option value="Use name only">Use name only</option>
             </select>
           </Field>
+          <Field label="Gender">
+            <select
+              name="gender"
+              value={profile.gender}
+              onChange={handleChange}
+              className="block w-full rounded-lg border-slate-200 bg-white text-slate-900 text-sm shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+            >
+              <option value="">— select —</option>
+              <option value="Female">Female</option>
+              <option value="Male">Male</option>
+              <option value="Non-binary">Non-binary</option>
+              <option value="Prefer not to say">Prefer not to say</option>
+            </select>
+          </Field>
           <Field label="First name">
             <TextInput name="firstName" value={profile.firstName} onChange={handleChange} placeholder="Jane" />
           </Field>
@@ -234,6 +250,42 @@ export default function ProfilePage({ onProfileSaved }) {
           <Field label="Nationality">
             <TextInput name="nationality" value={profile.nationality} onChange={handleChange} placeholder="e.g. American" />
           </Field>
+        </div>
+
+        {/* Ethnicity — multi-select, stored as comma-separated string */}
+        <div className="col-span-2 mt-2">
+          <label className="block text-sm font-medium text-slate-700 mb-2">Ethnicity <span className="text-xs text-slate-400 font-normal">(select all that apply)</span></label>
+          {[
+            'White / Caucasian',
+            'Hispanic, Latino, or Spanish origin',
+            'Black or African American',
+            'Asian',
+            'Native Hawaiian or other Pacific Islander',
+            'Indigenous Peoples, First Nations, Native American, or Alaska Native',
+            'Middle Eastern or North African',
+            'Some other race, ethnicity, or origin',
+            'Prefer not to say',
+          ].map((option) => {
+            const selected = (profile.ethnicity || '').split(',').map((v) => v.trim()).filter(Boolean);
+            const checked = selected.includes(option);
+            const toggle = () => {
+              const next = checked
+                ? selected.filter((v) => v !== option)
+                : [...selected, option];
+              setProfile((p) => ({ ...p, ethnicity: next.join(', ') }));
+            };
+            return (
+              <label key={option} className="flex items-center gap-2 text-sm text-slate-700 py-1 cursor-pointer hover:text-slate-900">
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  onChange={toggle}
+                  className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                />
+                {option}
+              </label>
+            );
+          })}
         </div>
 
         {/* Address */}

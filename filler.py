@@ -169,7 +169,9 @@ async def _collect_signals(element: ElementHandle) -> dict[str, str]:
     """Return a signals dict for ``match_field`` from a DOM element.
 
     Gathers ``name``, ``id``, ``placeholder``, ``autocomplete``,
-    ``aria_label``, and ``label`` (resolved human-readable text).
+    ``aria_label``, ``label`` (resolved human-readable text), and
+    ``group_label`` (nearest fieldset legend or section heading — useful
+    for identifying which checkbox group a checkbox belongs to).
     """
     signals: dict[str, str] = {}
 
@@ -185,6 +187,29 @@ async def _collect_signals(element: ElementHandle) -> dict[str, str]:
     label = await _get_label_text(element)
     if label:
         signals["label"] = label
+
+    # Walk up to find the nearest <fieldset><legend> or role="group" label —
+    # this identifies the question a checkbox group is answering.
+    group_label: str = await element.evaluate("""el => {
+        const fs = el.closest('fieldset');
+        if (fs) {
+            const leg = fs.querySelector('legend');
+            if (leg) return leg.textContent.trim();
+        }
+        const grp = el.closest('[role="group"]');
+        if (grp) {
+            const id = grp.getAttribute('aria-labelledby');
+            if (id) {
+                const n = document.getElementById(id);
+                if (n) return n.textContent.trim();
+            }
+            const lbl = grp.getAttribute('aria-label');
+            if (lbl) return lbl.trim();
+        }
+        return '';
+    }""")
+    if group_label:
+        signals["group_label"] = group_label.strip()
 
     return signals
 
@@ -838,11 +863,58 @@ async def fill_form(
                 continue
 
             # ----------------------------------------------------------------
-            # Checkbox / radio: skip in v0.1 (job-form specific values).
+            # Checkbox: handle multi-select profile fields (e.g. ethnicity).
+            # Radio: skip (job-specific options we can't reliably infer).
             # ----------------------------------------------------------------
-            if itype in ("checkbox", "radio"):
+            if itype == "radio":
                 entry["status"] = "skipped"
                 fields_skipped += 1
+                detail.append(entry)
+                continue
+
+            if itype == "checkbox":
+                matched_key = match_field(signals)
+                entry["matched_key"] = matched_key
+
+                # Keys whose values are comma-separated lists matched against
+                # each individual checkbox's visible label / value attribute.
+                _MULTI_CHECKBOX_KEYS = {"ethnicity"}
+
+                if matched_key in _MULTI_CHECKBOX_KEYS:
+                    stored_raw = str(profile.get(matched_key, ""))
+                    stored_values = [v.strip().lower() for v in stored_raw.split(",") if v.strip()]
+
+                    # Get the individual checkbox's visible option text.
+                    option_text: str = await element.evaluate("""el => {
+                        // value attr first
+                        if (el.value && el.value !== 'on') return el.value;
+                        // wrapping label
+                        const lbl = el.closest('label');
+                        if (lbl) return lbl.textContent.trim();
+                        return '';
+                    }""")
+                    option_lower = option_text.strip().lower()
+
+                    if option_lower and any(
+                        opt in option_lower or option_lower in opt
+                        for opt in stored_values
+                    ):
+                        try:
+                            await element.check(timeout=_FILL_TIMEOUT_MS)
+                            entry["status"] = "filled"
+                            fields_filled += 1
+                            logger.debug("Checked %s option: %r", matched_key, option_text)
+                        except PlaywrightError as exc:
+                            logger.warning("Failed to check %s: %s", matched_key, exc)
+                            entry["status"] = "error"
+                            fields_skipped += 1
+                    else:
+                        entry["status"] = "skipped"
+                        fields_skipped += 1
+                else:
+                    entry["status"] = "skipped"
+                    fields_skipped += 1
+
                 detail.append(entry)
                 continue
 

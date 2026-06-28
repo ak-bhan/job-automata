@@ -476,6 +476,8 @@ def _empty_profile() -> dict[str, Any]:
     return {
         "salutation": "",
         "pronouns": "",
+        "gender": "",
+        "ethnicity": "",
         "firstName": "",
         "lastName": "",
         "email": "",

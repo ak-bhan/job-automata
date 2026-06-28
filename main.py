@@ -137,6 +137,8 @@ class ProfileBody(BaseModel):
 
     salutation: str = ""
     pronouns: str = ""
+    gender: str = ""
+    ethnicity: str = ""
     firstName: str = ""
     lastName: str = ""
     email: str = ""
