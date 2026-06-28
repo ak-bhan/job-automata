@@ -108,8 +108,12 @@ async def _get_label_text(element: ElementHandle) -> str:
     1. ``aria-labelledby`` — resolves referenced element text content.
     2. ``<label for="id">`` — standard HTML association.
     3. Nearest ``<label>`` ancestor — implicit wrapping pattern.
+    4. Previous sibling text — catches ``<p>`` / ``<div>`` question labels
+       common in ATS platforms (e.g. Personio) that don't use ``<label>``.
+    5. Parent container heading text — walks up to find text-bearing siblings
+       within the same form group.
 
-    All three checks are performed in a single JS round-trip.
+    All checks are performed in a single JS round-trip.
     """
     text: str = await element.evaluate("""el => {
         // 1. aria-labelledby
@@ -130,6 +134,29 @@ async def _get_label_text(element: ElementHandle) -> str:
         // 3. Ancestor <label>
         const ancestor = el.closest('label');
         if (ancestor) return ancestor.textContent.trim();
+
+        // 4. Previous sibling elements — look for a nearby text node in p/div/span/h*
+        const textTags = new Set(['P', 'DIV', 'SPAN', 'H1', 'H2', 'H3', 'H4', 'LEGEND', 'DT']);
+        let sib = el.previousElementSibling;
+        for (let i = 0; i < 3 && sib; i++) {
+            if (textTags.has(sib.tagName)) {
+                const t = sib.textContent.trim();
+                if (t.length > 2) return t;
+            }
+            sib = sib.previousElementSibling;
+        }
+
+        // 5. Walk up one level and look at preceding siblings of the parent.
+        if (el.parentElement) {
+            let psib = el.parentElement.previousElementSibling;
+            for (let i = 0; i < 3 && psib; i++) {
+                if (textTags.has(psib.tagName)) {
+                    const t = psib.textContent.trim();
+                    if (t.length > 2) return t;
+                }
+                psib = psib.previousElementSibling;
+            }
+        }
 
         return '';
     }""")
@@ -552,10 +579,11 @@ def _match_question(label: str, qa_pairs: list) -> Optional[str]:
             best_score = score
             best_answer = answer
 
-    _MATCH_THRESHOLD = 0.25
+    _MATCH_THRESHOLD = 0.20
     if best_score >= _MATCH_THRESHOLD:
-        logger.debug("Q&A match: score=%.2f label=%r", best_score, label)
+        logger.info("Q&A match: score=%.2f label=%r", best_score, label)
         return best_answer
+    logger.info("Q&A no match: best_score=%.2f label=%r", best_score, label)
     return None
 
 
@@ -713,15 +741,18 @@ async def fill_form(
             entry["matched_key"] = matched_key
 
             if matched_key is None:
-                # For textarea fields, try matching against Q&A pairs before giving up.
-                if tag == "textarea" and qa_pairs:
+                # For textarea and plain text inputs, try Q&A matching before giving up.
+                # Personio screening questions often use <textarea> but some ATSes use
+                # <input type="text"> for open-ended questions.
+                is_open_text = tag == "textarea" or itype in ("text", "")
+                if is_open_text and qa_pairs:
                     # Build a combined label string from all available signals.
                     candidate_label = " ".join(filter(None, [
                         signals.get("label", ""),
                         signals.get("aria_label", ""),
                         signals.get("placeholder", ""),
-                        signals.get("name", ""),
                     ]))
+                    logger.info("Q&A candidate label for unmatched %s: %r", tag, candidate_label)
                     qa_answer = _match_question(candidate_label, qa_pairs)
                     if qa_answer:
                         ok = await _fill_text(element, qa_answer)
@@ -729,7 +760,6 @@ async def fill_form(
                         entry["status"] = "filled" if ok else "error"
                         if ok:
                             fields_filled += 1
-                            logger.debug("Q&A filled textarea: label=%r", candidate_label)
                         else:
                             fields_skipped += 1
                         detail.append(entry)
