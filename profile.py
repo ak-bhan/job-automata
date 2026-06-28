@@ -53,6 +53,17 @@ CREATE TABLE IF NOT EXISTS fill_logs (
 );
 """
 
+_CREATE_QA_TABLE = """
+CREATE TABLE IF NOT EXISTS qa_pairs (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    question   TEXT    NOT NULL,
+    answer     TEXT    NOT NULL DEFAULT '',
+    tags       TEXT    NOT NULL DEFAULT '',
+    created_at TEXT    NOT NULL,
+    updated_at TEXT    NOT NULL
+);
+"""
+
 _CREATE_APPLICATIONS_TABLE = """
 CREATE TABLE IF NOT EXISTS applications (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -94,6 +105,7 @@ def init_db() -> None:
     with _connect() as conn:
         conn.execute(_CREATE_PROFILE_TABLE)
         conn.execute(_CREATE_FILL_LOGS_TABLE)
+        conn.execute(_CREATE_QA_TABLE)
         conn.execute(_CREATE_APPLICATIONS_TABLE)
         # Apply any additive migrations for existing databases.
         for stmt in _MIGRATE_STATEMENTS:
@@ -311,6 +323,48 @@ def get_fill_logs(limit: int = 50) -> list[dict[str, Any]]:
         }
         for row in rows
     ]
+
+
+def get_qa_pairs() -> list[dict[str, Any]]:
+    """Return all Q&A pairs, newest first."""
+    with _connect() as conn:
+        rows = conn.execute(
+            "SELECT id, question, answer, tags, created_at, updated_at FROM qa_pairs ORDER BY id DESC"
+        ).fetchall()
+    return [dict(row) for row in rows]
+
+
+def add_qa_pair(question: str, answer: str, tags: str = "") -> dict[str, Any]:
+    """Insert a new Q&A pair and return it."""
+    now = _now_iso()
+    with _connect() as conn:
+        cursor = conn.execute(
+            "INSERT INTO qa_pairs (question, answer, tags, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+            (question.strip(), answer.strip(), tags.strip(), now, now),
+        )
+        conn.commit()
+        row_id: int = cursor.lastrowid  # type: ignore[assignment]
+    return {"id": row_id, "question": question, "answer": answer, "tags": tags,
+            "created_at": now, "updated_at": now}
+
+
+def update_qa_pair(pair_id: int, question: str, answer: str, tags: str = "") -> bool:
+    """Update an existing Q&A pair. Returns True if a row was updated."""
+    with _connect() as conn:
+        cursor = conn.execute(
+            "UPDATE qa_pairs SET question=?, answer=?, tags=?, updated_at=? WHERE id=?",
+            (question.strip(), answer.strip(), tags.strip(), _now_iso(), pair_id),
+        )
+        conn.commit()
+    return cursor.rowcount > 0
+
+
+def delete_qa_pair(pair_id: int) -> bool:
+    """Delete a Q&A pair by id. Returns True if a row was deleted."""
+    with _connect() as conn:
+        cursor = conn.execute("DELETE FROM qa_pairs WHERE id=?", (pair_id,))
+        conn.commit()
+    return cursor.rowcount > 0
 
 
 def delete_application(application_id: int) -> bool:
