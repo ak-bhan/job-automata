@@ -10,6 +10,7 @@ Public interface
 """
 
 import logging
+from pathlib import Path
 from typing import Optional
 
 from playwright.async_api import (
@@ -458,14 +459,26 @@ async def _fill_language_select(element: ElementHandle, value: str) -> bool:
     return False
 
 
-async def _attach_resume(element: ElementHandle, resume_path: str) -> bool:
-    """Set the file input's value to the resume PDF path."""
+async def _attach_resume(element: ElementHandle, resume_path: str, original_name: str = "") -> bool:
+    """Set the file input's value to the document at *resume_path*.
+
+    If *original_name* is provided the file is presented to the form under
+    that name (e.g. ``"John_CV.pdf"`) rather than the UUID filename stored
+    on disk.  Playwright supports this via the buffer-based file descriptor.
+    """
     try:
-        await element.set_input_files(resume_path, timeout=_FILL_TIMEOUT_MS)
-        logger.info("Resume attached: %s", resume_path)
+        if original_name:
+            file_bytes = Path(resume_path).read_bytes()
+            await element.set_input_files(
+                {"name": original_name, "mimeType": "application/pdf", "buffer": file_bytes},
+                timeout=_FILL_TIMEOUT_MS,
+            )
+        else:
+            await element.set_input_files(resume_path, timeout=_FILL_TIMEOUT_MS)
+        logger.info("Document attached: %s (as %r)", resume_path, original_name or resume_path)
         return True
     except PlaywrightError as exc:
-        logger.warning("Failed to attach resume: %s", exc)
+        logger.warning("Failed to attach document: %s", exc)
         return False
 
 
@@ -499,8 +512,11 @@ async def fill_form(
     url: str,
     profile: dict,
     resume_path: Optional[str] = None,
+    resume_name: Optional[str] = None,
     cover_letter_path: Optional[str] = None,
+    cover_letter_name: Optional[str] = None,
     reference_letter_path: Optional[str] = None,
+    reference_letter_name: Optional[str] = None,
 ) -> dict:
     """Open a visible browser, navigate to *url*, and fill the form.
 
@@ -515,9 +531,12 @@ async def fill_form(
     Args:
         url:         Job application URL to navigate to.
         profile:     Profile dict as returned by :func:`profile.get_profile`.
-        resume_path:           Absolute path to the resume PDF.
-        cover_letter_path:     Absolute path to the cover letter PDF.
-        reference_letter_path: Absolute path to the reference letter PDF.
+        resume_path:            Absolute path to the resume PDF.
+        resume_name:            Original filename to present to the form.
+        cover_letter_path:      Absolute path to the cover letter PDF.
+        cover_letter_name:      Original filename to present to the form.
+        reference_letter_path:  Absolute path to the reference letter PDF.
+        reference_letter_name:  Original filename to present to the form.
 
     Returns:
         A summary dict with the following keys:
@@ -597,14 +616,20 @@ async def fill_form(
                     "cover_letter": cover_letter_path,
                     "reference_letter": reference_letter_path,
                 }
+                name_map = {
+                    "resume": resume_name,
+                    "cover_letter": cover_letter_name,
+                    "reference_letter": reference_letter_name,
+                }
                 key_map = {
                     "resume": "resumePath",
                     "cover_letter": "coverLetterPath",
                     "reference_letter": "referenceLetterPath",
                 }
                 file_path = path_map.get(doc_type) if doc_type else None
+                orig_name = name_map.get(doc_type, "") or ""
                 if file_path:
-                    ok = await _attach_resume(element, file_path)
+                    ok = await _attach_resume(element, file_path, original_name=orig_name)
                     entry["matched_key"] = key_map[doc_type]
                     entry["status"] = "filled" if ok else "error"
                     if ok:

@@ -322,8 +322,11 @@ async def fill(body: FillRequest) -> FillResponse:
         )
 
     resume_path: str | None = profile_data.pop("resumePath", None)
+    resume_name: str | None = profile_data.pop("resumeName", None)
     cover_letter_path: str | None = profile_data.pop("coverLetterPath", None)
+    cover_letter_name: str | None = profile_data.pop("coverLetterName", None)
     reference_letter_path: str | None = profile_data.pop("referenceLetterPath", None)
+    reference_letter_name: str | None = profile_data.pop("referenceLetterName", None)
     url_str = str(body.url)
 
     try:
@@ -331,8 +334,11 @@ async def fill(body: FillRequest) -> FillResponse:
             url=url_str,
             profile=profile_data,
             resume_path=resume_path,
+            resume_name=resume_name,
             cover_letter_path=cover_letter_path,
+            cover_letter_name=cover_letter_name,
             reference_letter_path=reference_letter_path,
+            reference_letter_name=reference_letter_name,
         )
     except Exception as exc:
         logger.exception("fill_form raised an unexpected error: %s", exc)
