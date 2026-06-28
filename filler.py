@@ -867,8 +867,38 @@ async def fill_form(
             # Radio: skip (job-specific options we can't reliably infer).
             # ----------------------------------------------------------------
             if itype == "radio":
-                entry["status"] = "skipped"
-                fields_skipped += 1
+                # Profile keys that can be filled via a radio group by matching
+                # the stored value against each option's visible label / value.
+                _SINGLE_RADIO_KEYS = {"gender", "pronouns"}
+
+                matched_key = match_field(signals)
+                entry["matched_key"] = matched_key
+
+                if matched_key in _SINGLE_RADIO_KEYS:
+                    stored = str(profile.get(matched_key, "")).strip().lower()
+                    option_text: str = await element.evaluate("""el => {
+                        if (el.value && el.value !== 'on') return el.value;
+                        const lbl = el.closest('label');
+                        if (lbl) return lbl.textContent.trim();
+                        return '';
+                    }""")
+                    if stored and option_text.strip().lower() == stored:
+                        try:
+                            await element.check(timeout=_FILL_TIMEOUT_MS)
+                            entry["status"] = "filled"
+                            fields_filled += 1
+                            logger.debug("Radio filled %s = %r", matched_key, option_text)
+                        except PlaywrightError as exc:
+                            logger.warning("Failed to click radio %s: %s", matched_key, exc)
+                            entry["status"] = "error"
+                            fields_skipped += 1
+                    else:
+                        entry["status"] = "skipped"
+                        fields_skipped += 1
+                else:
+                    entry["status"] = "skipped"
+                    fields_skipped += 1
+
                 detail.append(entry)
                 continue
 
