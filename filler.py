@@ -9,10 +9,12 @@ Public interface
     await fill_form(url, profile, resume_path=None) -> dict
 """
 
+import asyncio
 import logging
 import re
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional
+from urllib.parse import urlparse
 
 from playwright.async_api import (
     async_playwright,
@@ -511,6 +513,110 @@ async def _attach_resume(element: ElementHandle, resume_path: str, original_name
 
 
 # ---------------------------------------------------------------------------
+# Submission detection
+# ---------------------------------------------------------------------------
+
+# Text fragments that typically appear on a successful-submission confirmation page.
+_SUCCESS_KEYWORDS = frozenset({
+    "thank you", "thank-you", "thanks for applying",
+    "danke", "vielen dank",
+    "application received", "application submitted", "application complete",
+    "your application has been", "we have received your",
+    "you have applied", "bewerbung erfolgreich", "erfolgreich",
+    "bestätigung", "confirmation", "submitted successfully",
+})
+
+# URL path fragments that indicate a success/confirmation page.
+_SUCCESS_URL_FRAGMENTS = frozenset({
+    "confirmation", "success", "thank", "danke", "submitted", "complete",
+    "bestätigung", "danksagung",
+})
+
+# How long to wait for the user to submit after filling (ms).
+_SUBMISSION_WATCH_TIMEOUT_MS = 600_000  # 10 minutes
+
+
+def infer_company_role(page_title: str, url: str) -> tuple[str, str]:
+    """Return *(company, role)* inferred from a page title or URL.
+
+    Tries common separator patterns in the title first, then falls back
+    to extracting the domain name as the company with the full title as
+    the role.
+    """
+    title = page_title.strip()
+
+    # "Role at Company" / "Stelle bei Firma"
+    for sep in (" at ", " bei ", " @ "):
+        if sep in title:
+            parts = title.split(sep, 1)
+            return parts[1].strip(), parts[0].strip()
+
+    # "Role - Company" / "Company | Role" — shorter part is likely the company
+    for sep in (" - ", " – ", " — ", " | ", ": "):
+        if sep in title:
+            a, b = title.split(sep, 1)
+            a, b = a.strip(), b.strip()
+            if len(a) <= len(b):
+                return a, b
+            return b, a
+
+    # Fallback: domain as company, full title as role
+    try:
+        domain = urlparse(url).netloc.replace("www.", "").split(".")[0].capitalize()
+    except Exception:
+        domain = ""
+    return domain, title
+
+
+async def _watch_for_submission(
+    page: Page,
+    original_url: str,
+    on_submitted: Callable,
+) -> None:
+    """Background task: detect a successful form submission.
+
+    Waits for the page URL to change from *original_url* (indicating a
+    redirect after submit).  If the new URL or page body contains known
+    success keywords the *on_submitted* callback is awaited.
+
+    Stops silently when the page is closed by the user or the 10-minute
+    watch timeout expires.
+    """
+    try:
+        await page.wait_for_url(
+            lambda u: u != original_url,
+            timeout=_SUBMISSION_WATCH_TIMEOUT_MS,
+        )
+    except PlaywrightError:
+        # Page closed, browser closed, or timeout — user did not submit.
+        logger.debug("Submission watcher ended without detecting a submit")
+        return
+
+    new_url = page.url
+    try:
+        body = (await page.inner_text("body") or "").lower()
+    except PlaywrightError:
+        body = ""
+
+    url_lower = new_url.lower()
+    success = (
+        any(kw in body for kw in _SUCCESS_KEYWORDS)
+        or any(frag in url_lower for frag in _SUCCESS_URL_FRAGMENTS)
+    )
+
+    if success:
+        logger.info("Submission detected via URL change to %s — auto-logging application", new_url)
+        try:
+            await on_submitted()
+        except Exception as exc:
+            logger.error("on_submitted callback raised: %s", exc)
+    else:
+        logger.info(
+            "URL changed to %s but no success signal found — skipping auto-log", new_url
+        )
+
+
+# ---------------------------------------------------------------------------
 # Internal helpers — page scanning
 # ---------------------------------------------------------------------------
 
@@ -597,6 +703,7 @@ async def fill_form(
     reference_letter_path: Optional[str] = None,
     reference_letter_name: Optional[str] = None,
     qa_pairs: list = [],
+    on_submitted: Optional[Callable] = None,
 ) -> dict:
     """Open a visible browser, navigate to *url*, and fill the form.
 
@@ -620,6 +727,11 @@ async def fill_form(
         qa_pairs:               List of Q&A dicts (question/answer) used to
                                 fill screening question textareas that have no
                                 profile-key match.
+        on_submitted:           Optional async callable invoked automatically
+                                when a successful form submission is detected
+                                (URL change + success keyword).  Called with
+                                no arguments.  If None, no background watcher
+                                is started.
 
     Returns:
         A summary dict with the following keys:
@@ -838,6 +950,14 @@ async def fill_form(
             "fill_form complete — detected=%d filled=%d skipped=%d",
             len(elements), fields_filled, fields_skipped,
         )
+
+        # Start background watcher that detects submission and auto-logs.
+        # The browser stays open; pw is stopped inside the watcher when done.
+        if on_submitted:
+            asyncio.create_task(
+                _watch_for_submission(page, url, on_submitted)
+            )
+
         return summary
 
     except PlaywrightError:

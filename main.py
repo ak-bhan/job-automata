@@ -330,6 +330,17 @@ async def fill(body: FillRequest) -> FillResponse:
     url_str = str(body.url)
     qa_pairs = prof.get_qa_pairs()
 
+    # page_title_ref is populated after fill_form returns but before the user
+    # submits, so the on_submitted callback can use it for company/role inference.
+    page_title_ref: list[str] = [""]
+
+    async def _on_submitted() -> None:
+        company, role = filler.infer_company_role(page_title_ref[0], url_str)
+        app_id = prof.log_application(url=url_str, company=company, role=role)
+        logger.info(
+            "Auto-logged application id=%d company=%r role=%r", app_id, company, role
+        )
+
     try:
         summary = await filler.fill_form(
             url=url_str,
@@ -341,7 +352,9 @@ async def fill(body: FillRequest) -> FillResponse:
             reference_letter_path=reference_letter_path,
             reference_letter_name=reference_letter_name,
             qa_pairs=qa_pairs,
+            on_submitted=_on_submitted,
         )
+        page_title_ref[0] = summary.get("page_title", "")
     except Exception as exc:
         logger.exception("fill_form raised an unexpected error: %s", exc)
         raise HTTPException(

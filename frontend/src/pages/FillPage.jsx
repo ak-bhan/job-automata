@@ -174,7 +174,7 @@ export default function FillPage() {
           </button>
         </div>
         <p className="text-xs text-slate-400 mt-2">
-          A Chromium window will open. Review the filled fields and submit manually.
+          A Chromium window will open. Review the filled fields and submit manually. Successful submissions are saved to your tracker automatically.
         </p>
       </div>
 
@@ -224,8 +224,8 @@ export default function FillPage() {
           ) : (
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 space-y-4">
               <div>
-                <h2 className="text-sm font-semibold text-slate-700">Did you submit the form?</h2>
-                <p className="text-xs text-slate-400 mt-0.5">Save this application to your tracker. Company and role are optional.</p>
+                <h2 className="text-sm font-semibold text-slate-700">Not auto-saved yet?</h2>
+                <p className="text-xs text-slate-400 mt-0.5">Submission is usually detected automatically. Use this if it wasn't saved to your tracker after submitting.</p>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <input
