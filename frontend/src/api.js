@@ -252,6 +252,38 @@ export async function deleteJob(id) {
 }
 
 // ---------------------------------------------------------------------------
+// LinkedIn config
+// ---------------------------------------------------------------------------
+
+/**
+ * Retrieve LinkedIn configuration (email + has_password flag).
+ * The password is never returned by the API.
+ * @returns {Promise<{email: string, has_password: boolean}>}
+ */
+export async function getLinkedInConfig() {
+  const res = await fetch(`${BASE}/linkedin-config`);
+  if (!res.ok) await handleError(res);
+  return res.json();
+}
+
+/**
+ * Save LinkedIn credentials.
+ * Pass an empty password string to preserve the existing stored password.
+ * @param {string} email
+ * @param {string} [password='']
+ * @returns {Promise<{email: string, has_password: boolean}>}
+ */
+export async function saveLinkedInConfig(email, password = '') {
+  const res = await fetch(`${BASE}/linkedin-config`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  });
+  if (!res.ok) await handleError(res);
+  return res.json();
+}
+
+// ---------------------------------------------------------------------------
 // Q&A pairs
 // ---------------------------------------------------------------------------
 

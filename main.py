@@ -481,9 +481,38 @@ class SearchConfigBody(BaseModel):
     sources: list[str] = ["arbeitnow", "remotive"]
 
 
+class LinkedInConfigBody(BaseModel):
+    """Body for PUT /linkedin-config.
+
+    Passing an empty password string preserves the currently stored password.
+    """
+    email: str = ""
+    password: str = ""
+
+
 class JobStatusBody(BaseModel):
     """Body for PUT /jobs/{id}/status."""
     status: str  # new | saved | hidden
+
+
+@app.get("/linkedin-config", tags=["jobs"])
+async def get_linkedin_config() -> dict[str, Any]:
+    """Return LinkedIn configuration (email and has_password flag).
+
+    The raw password is never included in the response.
+    """
+    return prof.get_linkedin_config()
+
+
+@app.put("/linkedin-config", tags=["jobs"])
+async def save_linkedin_config(body: LinkedInConfigBody) -> dict[str, Any]:
+    """Save LinkedIn credentials.
+
+    Passing an empty password string preserves the currently stored password.
+    """
+    result = prof.save_linkedin_config(email=body.email, password=body.password)
+    logger.info("LinkedIn config updated for email=%s", body.email)
+    return result
 
 
 @app.get("/search-config", tags=["jobs"])

@@ -2,12 +2,14 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   getSearchConfig, saveSearchConfig, fetchJobs,
   getJobs, getJobCounts, updateJobStatus, deleteJob,
+  getLinkedInConfig, saveLinkedInConfig,
 } from '../api.js';
 
-const SOURCE_LABELS = { arbeitnow: 'Arbeitnow', remotive: 'Remotive' };
+const SOURCE_LABELS = { arbeitnow: 'Arbeitnow', remotive: 'Remotive', linkedin: 'LinkedIn' };
 const SOURCE_COLORS = {
   arbeitnow: 'bg-blue-100 text-blue-700',
   remotive: 'bg-emerald-100 text-emerald-700',
+  linkedin: 'bg-sky-100 text-sky-700',
 };
 
 function relativeTime(isoStr) {
@@ -28,6 +30,80 @@ function Toast({ message, type }) {
   return (
     <div className={`fixed bottom-6 right-6 z-50 px-4 py-3 rounded-xl border shadow-lg text-sm font-medium ${colors}`}>
       {message}
+    </div>
+  );
+}
+
+function LinkedInCredentials() {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [hasPassword, setHasPassword] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    getLinkedInConfig()
+      .then((cfg) => {
+        setEmail(cfg.email || '');
+        setHasPassword(cfg.has_password || false);
+      })
+      .catch(() => {});
+  }, []);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const result = await saveLinkedInConfig(email, password);
+      setHasPassword(result.has_password);
+      setPassword('');
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="border-t border-slate-100 pt-4">
+      <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
+        LinkedIn Credentials
+      </label>
+      <p className="text-xs text-slate-400 mb-3">
+        Required only when LinkedIn is selected as a source. Stored locally in your database.
+      </p>
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="block text-xs text-slate-500 mb-1">Email</label>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@example.com"
+            className="block w-full rounded-lg border-slate-200 bg-white text-slate-900 text-sm shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 placeholder:text-slate-400"
+          />
+        </div>
+        <div>
+          <label className="block text-xs text-slate-500 mb-1">
+            Password{hasPassword && <span className="ml-1 text-green-600">(saved)</span>}
+          </label>
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder={hasPassword ? 'Leave blank to keep existing' : 'Enter password'}
+            className="block w-full rounded-lg border-slate-200 bg-white text-slate-900 text-sm shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 placeholder:text-slate-400"
+          />
+        </div>
+      </div>
+      <div className="mt-2">
+        <button
+          onClick={handleSave}
+          disabled={saving || !email}
+          className="px-4 py-1.5 bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white text-xs font-semibold rounded-lg transition-colors"
+        >
+          {saving ? 'Saving…' : saved ? 'Saved!' : 'Save LinkedIn Credentials'}
+        </button>
+      </div>
     </div>
   );
 }
@@ -181,6 +257,8 @@ function SearchSettings({ onFetched }) {
                 : `Fetched ${lastResult.fetched} jobs — ${lastResult.inserted} new, ${lastResult.skipped} already known.${lastResult.errors?.length ? ' Errors: ' + lastResult.errors.join('; ') : ''}`}
             </div>
           )}
+
+          <LinkedInCredentials />
         </div>
       )}
     </div>

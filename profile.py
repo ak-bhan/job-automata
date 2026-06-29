@@ -87,6 +87,15 @@ CREATE TABLE IF NOT EXISTS search_config (
 );
 """
 
+_CREATE_LINKEDIN_CONFIG_TABLE = """
+CREATE TABLE IF NOT EXISTS linkedin_config (
+    id         INTEGER PRIMARY KEY CHECK (id = 1),
+    email      TEXT    NOT NULL DEFAULT '',
+    password   TEXT    NOT NULL DEFAULT '',
+    updated_at TEXT    NOT NULL
+);
+"""
+
 _CREATE_JOB_LISTINGS_TABLE = """
 CREATE TABLE IF NOT EXISTS job_listings (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -139,6 +148,7 @@ def init_db() -> None:
         conn.execute(_CREATE_QA_TABLE)
         conn.execute(_CREATE_APPLICATIONS_TABLE)
         conn.execute(_CREATE_SEARCH_CONFIG_TABLE)
+        conn.execute(_CREATE_LINKEDIN_CONFIG_TABLE)
         conn.execute(_CREATE_JOB_LISTINGS_TABLE)
         # Apply any additive migrations for existing databases.
         for stmt in _MIGRATE_STATEMENTS:
@@ -549,6 +559,81 @@ def save_search_config(
         conn.commit()
     logger.info("Search config saved")
     return get_search_config()
+
+
+# ---------------------------------------------------------------------------
+# LinkedIn config
+# ---------------------------------------------------------------------------
+
+def get_linkedin_config() -> dict[str, Any]:
+    """Return LinkedIn configuration safe for API responses.
+
+    Returns:
+        Dict with ``email`` and ``has_password`` (bool). The raw password is
+        never included — use :func:`get_linkedin_credentials` internally.
+    """
+    with _connect() as conn:
+        row = conn.execute(
+            "SELECT email, password FROM linkedin_config WHERE id = 1"
+        ).fetchone()
+    if row is None:
+        return {"email": "", "has_password": False}
+    return {"email": row["email"], "has_password": bool(row["password"])}
+
+
+def get_linkedin_credentials() -> tuple[str, str]:
+    """Return ``(email, password)`` for internal scraper use only.
+
+    Returns:
+        Tuple of ``(email, password)``, or ``('', '')`` if not configured.
+    """
+    with _connect() as conn:
+        row = conn.execute(
+            "SELECT email, password FROM linkedin_config WHERE id = 1"
+        ).fetchone()
+    if row is None:
+        return ("", "")
+    return (row["email"], row["password"])
+
+
+def save_linkedin_config(email: str, password: str) -> dict[str, Any]:
+    """Persist LinkedIn credentials.
+
+    Args:
+        email:    LinkedIn account email.
+        password: LinkedIn account password. Pass an empty string to preserve
+                  the currently stored password without changing it.
+
+    Returns:
+        The safe config dict as returned by :func:`get_linkedin_config`.
+    """
+    with _connect() as conn:
+        if not password:
+            conn.execute(
+                """
+                INSERT INTO linkedin_config (id, email, password, updated_at)
+                VALUES (1, ?, '', ?)
+                ON CONFLICT (id) DO UPDATE SET
+                    email      = excluded.email,
+                    updated_at = excluded.updated_at
+                """,
+                (email, _now_iso()),
+            )
+        else:
+            conn.execute(
+                """
+                INSERT INTO linkedin_config (id, email, password, updated_at)
+                VALUES (1, ?, ?, ?)
+                ON CONFLICT (id) DO UPDATE SET
+                    email      = excluded.email,
+                    password   = excluded.password,
+                    updated_at = excluded.updated_at
+                """,
+                (email, password, _now_iso()),
+            )
+        conn.commit()
+    logger.info("LinkedIn config saved for email=%s", email)
+    return get_linkedin_config()
 
 
 # ---------------------------------------------------------------------------

@@ -1,6 +1,9 @@
 # Database
 db.sqlite
 
+# LinkedIn session cookies (contains auth tokens — never commit)
+linkedin_session.json
+
 # Uploaded resumes
 resumes/
 
