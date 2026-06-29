@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { fillForm, markApplied } from '../api.js';
 
 const STATUS_BADGE = {
@@ -41,8 +41,12 @@ function StatBox({ value, label, color }) {
   );
 }
 
-export default function FillPage() {
-  const [url, setUrl] = useState('');
+export default function FillPage({ initialUrl = '' }) {
+  const [url, setUrl] = useState(initialUrl);
+
+  useEffect(() => {
+    if (initialUrl) setUrl(initialUrl);
+  }, [initialUrl]);
   const [filling, setFilling] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');

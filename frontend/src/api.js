@@ -184,6 +184,77 @@ export async function getLogs(limit = 20) {
   return res.json();
 }
 
+// ---------------------------------------------------------------------------
+// Job search
+// ---------------------------------------------------------------------------
+
+/** @returns {Promise<Object>} */
+export async function getSearchConfig() {
+  const res = await fetch(`${BASE}/search-config`);
+  if (!res.ok) await handleError(res);
+  return res.json();
+}
+
+/** @param {Object} config */
+export async function saveSearchConfig(config) {
+  const res = await fetch(`${BASE}/search-config`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(config),
+  });
+  if (!res.ok) await handleError(res);
+  return res.json();
+}
+
+/** @returns {Promise<{fetched,inserted,skipped,errors,counts}>} */
+export async function fetchJobs() {
+  const res = await fetch(`${BASE}/jobs/fetch`, { method: 'POST' });
+  if (!res.ok) await handleError(res);
+  return res.json();
+}
+
+/**
+ * @param {{ status?: string, source?: string, q?: string, limit?: number, offset?: number }} params
+ */
+export async function getJobs({ status, source, q, limit = 200, offset = 0 } = {}) {
+  const p = new URLSearchParams();
+  if (status) p.set('status', status);
+  if (source) p.set('source', source);
+  if (q) p.set('q', q);
+  p.set('limit', limit);
+  p.set('offset', offset);
+  const res = await fetch(`${BASE}/jobs?${p}`);
+  if (!res.ok) await handleError(res);
+  return res.json();
+}
+
+/** @returns {Promise<{new,saved,hidden}>} */
+export async function getJobCounts() {
+  const res = await fetch(`${BASE}/jobs/counts`);
+  if (!res.ok) await handleError(res);
+  return res.json();
+}
+
+export async function updateJobStatus(id, jobStatus) {
+  const res = await fetch(`${BASE}/jobs/${id}/status`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status: jobStatus }),
+  });
+  if (!res.ok) await handleError(res);
+  return res.json();
+}
+
+export async function deleteJob(id) {
+  const res = await fetch(`${BASE}/jobs/${id}`, { method: 'DELETE' });
+  if (!res.ok) await handleError(res);
+  return res.json();
+}
+
+// ---------------------------------------------------------------------------
+// Q&A pairs
+// ---------------------------------------------------------------------------
+
 /**
  * Retrieve all Q&A pairs.
  * @returns {Promise<Array>}

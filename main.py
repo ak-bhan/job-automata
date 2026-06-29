@@ -35,6 +35,7 @@ from pydantic import BaseModel, HttpUrl
 
 import profile as prof
 import filler
+import scraper
 
 
 def _age_range_from_dob(dob_str: str) -> str:
@@ -465,6 +466,122 @@ async def delete_qa_pair(pair_id: int) -> dict[str, str]:
     deleted = prof.delete_qa_pair(pair_id)
     if not deleted:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Q&A pair {pair_id} not found.")
+    return {"status": "deleted"}
+
+
+# ---------------------------------------------------------------------------
+# Search config + job listings
+# ---------------------------------------------------------------------------
+
+class SearchConfigBody(BaseModel):
+    """Body for PUT /search-config."""
+    keywords: str = ""
+    location: str = ""
+    max_age_hours: int = 24
+    sources: list[str] = ["arbeitnow", "remotive"]
+
+
+class JobStatusBody(BaseModel):
+    """Body for PUT /jobs/{id}/status."""
+    status: str  # new | saved | hidden
+
+
+@app.get("/search-config", tags=["jobs"])
+async def get_search_config() -> dict[str, Any]:
+    """Return the saved job-search configuration."""
+    return prof.get_search_config()
+
+
+@app.put("/search-config", tags=["jobs"])
+async def save_search_config(body: SearchConfigBody) -> dict[str, Any]:
+    """Save job-search configuration (keywords, location, max age, sources)."""
+    return prof.save_search_config(
+        keywords=body.keywords,
+        location=body.location,
+        max_age_hours=max(1, body.max_age_hours),
+        sources=body.sources,
+    )
+
+
+@app.post("/jobs/fetch", tags=["jobs"])
+async def fetch_jobs() -> dict[str, Any]:
+    """Fetch fresh job listings from all configured sources.
+
+    Reads the saved search config, queries each enabled source, and
+    stores new listings (duplicates are skipped). Returns a summary.
+    """
+    config = prof.get_search_config()
+    jobs, errors = await scraper.fetch_all(
+        keywords=config["keywords"],
+        location=config["location"],
+        max_age_hours=config["max_age_hours"],
+        sources=config["sources"],
+    )
+    inserted, skipped = prof.save_jobs(jobs)
+    logger.info("Job fetch complete — fetched=%d inserted=%d skipped=%d errors=%s",
+                len(jobs), inserted, skipped, errors)
+    return {
+        "fetched": len(jobs),
+        "inserted": inserted,
+        "skipped": skipped,
+        "errors": errors,
+        "counts": prof.get_job_counts(),
+    }
+
+
+@app.get("/jobs", tags=["jobs"])
+async def get_jobs(
+    status: str | None = None,
+    source: str | None = None,
+    q: str | None = None,
+    limit: int = 200,
+    offset: int = 0,
+) -> list[dict[str, Any]]:
+    """Return job listings with optional filters.
+
+    Args:
+        status: ``new``, ``saved``, ``hidden``, or ``all``.
+                Defaults to all non-hidden jobs.
+        source: Filter by source id (``arbeitnow``, ``remotive``).
+        q:      Text search on title + company.
+        limit:  Max results (default 200).
+        offset: Pagination offset.
+    """
+    return prof.get_jobs(
+        status=status,
+        source=source,
+        q=q,
+        limit=min(limit, 500),
+        offset=offset,
+    )
+
+
+@app.get("/jobs/counts", tags=["jobs"])
+async def get_job_counts() -> dict[str, int]:
+    """Return job counts grouped by status."""
+    return prof.get_job_counts()
+
+
+@app.put("/jobs/{job_id}/status", tags=["jobs"])
+async def update_job_status(job_id: int, body: JobStatusBody) -> dict[str, str]:
+    """Update a job listing's status (new / saved / hidden)."""
+    if body.status not in ("new", "saved", "hidden"):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="status must be one of: new, saved, hidden",
+        )
+    updated = prof.update_job_status(job_id, body.status)
+    if not updated:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Job {job_id} not found.")
+    return {"status": body.status}
+
+
+@app.delete("/jobs/{job_id}", tags=["jobs"])
+async def delete_job(job_id: int) -> dict[str, str]:
+    """Delete a job listing by id."""
+    deleted = prof.delete_job(job_id)
+    if not deleted:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Job {job_id} not found.")
     return {"status": "deleted"}
 
 

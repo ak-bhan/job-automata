@@ -76,6 +76,36 @@ CREATE TABLE IF NOT EXISTS applications (
 );
 """
 
+_CREATE_SEARCH_CONFIG_TABLE = """
+CREATE TABLE IF NOT EXISTS search_config (
+    id            INTEGER PRIMARY KEY CHECK (id = 1),
+    keywords      TEXT    NOT NULL DEFAULT '',
+    location      TEXT    NOT NULL DEFAULT '',
+    max_age_hours INTEGER NOT NULL DEFAULT 24,
+    sources       TEXT    NOT NULL DEFAULT 'arbeitnow,remotive',
+    updated_at    TEXT    NOT NULL
+);
+"""
+
+_CREATE_JOB_LISTINGS_TABLE = """
+CREATE TABLE IF NOT EXISTS job_listings (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    source      TEXT    NOT NULL,
+    external_id TEXT    NOT NULL,
+    title       TEXT    NOT NULL DEFAULT '',
+    company     TEXT    NOT NULL DEFAULT '',
+    location    TEXT    NOT NULL DEFAULT '',
+    description TEXT    NOT NULL DEFAULT '',
+    apply_url   TEXT    NOT NULL DEFAULT '',
+    tags        TEXT    NOT NULL DEFAULT '',
+    remote      INTEGER NOT NULL DEFAULT 0,
+    posted_at   TEXT,
+    fetched_at  TEXT    NOT NULL,
+    status      TEXT    NOT NULL DEFAULT 'new',
+    UNIQUE(source, external_id)
+);
+"""
+
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
@@ -108,6 +138,8 @@ def init_db() -> None:
         conn.execute(_CREATE_FILL_LOGS_TABLE)
         conn.execute(_CREATE_QA_TABLE)
         conn.execute(_CREATE_APPLICATIONS_TABLE)
+        conn.execute(_CREATE_SEARCH_CONFIG_TABLE)
+        conn.execute(_CREATE_JOB_LISTINGS_TABLE)
         # Apply any additive migrations for existing databases.
         for stmt in _MIGRATE_STATEMENTS:
             try:
@@ -465,6 +497,205 @@ def get_applications(
         }
         for row in rows
     ]
+
+
+# ---------------------------------------------------------------------------
+# Search config
+# ---------------------------------------------------------------------------
+
+def get_search_config() -> dict[str, Any]:
+    """Return the saved search configuration (single row, id=1)."""
+    with _connect() as conn:
+        row = conn.execute(
+            "SELECT keywords, location, max_age_hours, sources FROM search_config WHERE id = 1"
+        ).fetchone()
+    if row is None:
+        return {
+            "keywords": "",
+            "location": "",
+            "max_age_hours": 24,
+            "sources": ["arbeitnow", "remotive"],
+        }
+    return {
+        "keywords": row["keywords"],
+        "location": row["location"],
+        "max_age_hours": row["max_age_hours"],
+        "sources": [s.strip() for s in row["sources"].split(",") if s.strip()],
+    }
+
+
+def save_search_config(
+    keywords: str,
+    location: str,
+    max_age_hours: int,
+    sources: list[str],
+) -> dict[str, Any]:
+    """Persist the search configuration."""
+    sources_str = ",".join(sources)
+    with _connect() as conn:
+        conn.execute(
+            """
+            INSERT INTO search_config (id, keywords, location, max_age_hours, sources, updated_at)
+            VALUES (1, ?, ?, ?, ?, ?)
+            ON CONFLICT (id) DO UPDATE SET
+                keywords      = excluded.keywords,
+                location      = excluded.location,
+                max_age_hours = excluded.max_age_hours,
+                sources       = excluded.sources,
+                updated_at    = excluded.updated_at
+            """,
+            (keywords, location, max_age_hours, sources_str, _now_iso()),
+        )
+        conn.commit()
+    logger.info("Search config saved")
+    return get_search_config()
+
+
+# ---------------------------------------------------------------------------
+# Job listings
+# ---------------------------------------------------------------------------
+
+def save_jobs(jobs: list[dict[str, Any]]) -> tuple[int, int]:
+    """Insert new job listings, skipping duplicates (same source + external_id).
+
+    Returns:
+        Tuple of (inserted, skipped) counts.
+    """
+    fetched_at = _now_iso()
+    inserted = 0
+    skipped = 0
+    with _connect() as conn:
+        for job in jobs:
+            cursor = conn.execute(
+                """
+                INSERT OR IGNORE INTO job_listings
+                    (source, external_id, title, company, location, description,
+                     apply_url, tags, remote, posted_at, fetched_at, status)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'new')
+                """,
+                (
+                    job.get("source", ""),
+                    job.get("external_id", ""),
+                    job.get("title", ""),
+                    job.get("company", ""),
+                    job.get("location", ""),
+                    job.get("description", ""),
+                    job.get("apply_url", ""),
+                    job.get("tags", ""),
+                    1 if job.get("remote") else 0,
+                    job.get("posted_at"),
+                    fetched_at,
+                ),
+            )
+            if cursor.rowcount:
+                inserted += 1
+            else:
+                skipped += 1
+        conn.commit()
+    logger.info("save_jobs: inserted=%d skipped=%d", inserted, skipped)
+    return inserted, skipped
+
+
+def get_jobs(
+    status: Optional[str] = None,
+    source: Optional[str] = None,
+    q: Optional[str] = None,
+    limit: int = 200,
+    offset: int = 0,
+) -> list[dict[str, Any]]:
+    """Return job listings with optional filtering.
+
+    Args:
+        status: Filter by status: ``"new"``, ``"saved"``, ``"hidden"``.
+                Pass ``None`` or ``"all"`` to return all non-hidden jobs.
+        source: Filter by source id (e.g. ``"arbeitnow"``).
+        q:      Case-insensitive text search on title + company.
+        limit:  Max rows to return.
+        offset: Row offset for pagination.
+    """
+    conditions: list[str] = []
+    params: list = []
+
+    if status and status != "all":
+        conditions.append("status = ?")
+        params.append(status)
+    elif not status or status == "all":
+        # Exclude hidden from the default "all" view
+        conditions.append("status != 'hidden'")
+
+    if source:
+        conditions.append("source = ?")
+        params.append(source)
+
+    if q:
+        conditions.append("(title LIKE ? OR company LIKE ?)")
+        like = f"%{q}%"
+        params.extend([like, like])
+
+    where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+    params.extend([limit, offset])
+
+    with _connect() as conn:
+        rows = conn.execute(
+            f"""
+            SELECT id, source, external_id, title, company, location,
+                   description, apply_url, tags, remote, posted_at, fetched_at, status
+            FROM job_listings
+            {where}
+            ORDER BY posted_at DESC, id DESC
+            LIMIT ? OFFSET ?
+            """,
+            params,
+        ).fetchall()
+
+    return [
+        {
+            "id": row["id"],
+            "source": row["source"],
+            "title": row["title"],
+            "company": row["company"],
+            "location": row["location"],
+            "description": row["description"],
+            "apply_url": row["apply_url"],
+            "tags": [t.strip() for t in row["tags"].split(",") if t.strip()],
+            "remote": bool(row["remote"]),
+            "posted_at": row["posted_at"],
+            "fetched_at": row["fetched_at"],
+            "status": row["status"],
+        }
+        for row in rows
+    ]
+
+
+def update_job_status(job_id: int, status: str) -> bool:
+    """Update a job listing's status. Returns True if the row existed."""
+    with _connect() as conn:
+        cursor = conn.execute(
+            "UPDATE job_listings SET status = ? WHERE id = ?",
+            (status, job_id),
+        )
+        conn.commit()
+    return cursor.rowcount > 0
+
+
+def delete_job(job_id: int) -> bool:
+    """Delete a job listing by id. Returns True if a row was deleted."""
+    with _connect() as conn:
+        cursor = conn.execute("DELETE FROM job_listings WHERE id = ?", (job_id,))
+        conn.commit()
+    return cursor.rowcount > 0
+
+
+def get_job_counts() -> dict[str, int]:
+    """Return counts of jobs grouped by status."""
+    with _connect() as conn:
+        rows = conn.execute(
+            "SELECT status, COUNT(*) as cnt FROM job_listings GROUP BY status"
+        ).fetchall()
+    counts = {"new": 0, "saved": 0, "hidden": 0}
+    for row in rows:
+        counts[row["status"]] = row["cnt"]
+    return counts
 
 
 # ---------------------------------------------------------------------------
